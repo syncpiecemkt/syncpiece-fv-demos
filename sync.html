@@ -1,0 +1,658 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="robots" content="noindex, nofollow">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Syncpiece FV Demo — wordmark reveal</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@112,800&family=Instrument+Serif:ital@0;1&family=Inter:wght@400;500;600&family=Zen+Kaku+Gothic+New:wght@500;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --paper: #f3f2ee;
+    --ink: #111;
+    --night: #0d0d0d;
+    --pad: clamp(16px, 2.2vw, 32px);
+    --ease: cubic-bezier(.76, 0, .18, 1);
+    --ease-out: cubic-bezier(.16, 1, .3, 1);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { background: var(--paper); color: var(--ink); }
+  body {
+    font-family: "Inter", "Zen Kaku Gothic New", sans-serif;
+    -webkit-font-smoothing: antialiased;
+    word-break: auto-phrase;
+    text-wrap: pretty;
+  }
+  a { color: inherit; text-decoration: none; }
+  .is-loading { overflow: hidden; }
+
+  /* 文字を下からせり上げるためのマスク */
+  .mask { display: inline-block; overflow: hidden; vertical-align: top; }
+  .mask > span { display: inline-block; transform: translateY(135%); }
+  .is-in .mask > span, .mask.is-in > span {
+    transform: none;
+    transition: transform 1.25s var(--ease-out);
+    transition-delay: calc(var(--i, 0) * 70ms + var(--d, 0ms));
+  }
+  .fade { opacity: 0; transform: translateY(10px); }
+  .is-in .fade, .fade.is-in {
+    opacity: 1; transform: none;
+    transition: opacity .9s ease, transform .9s var(--ease-out);
+    transition-delay: var(--d, 0ms);
+  }
+
+  /* ---------------- ローダー（初回だけ） ---------------- */
+  .loader {
+    position: fixed; inset: 0; z-index: 100;
+    background: var(--night); color: #fff;
+    display: grid; place-items: center;
+    clip-path: inset(0 0 0 0);
+  }
+  .loader.is-out { clip-path: inset(0 0 100% 0); transition: clip-path 1s var(--ease); }
+  .loader-row { display: flex; align-items: center; }
+  .loader-letter {
+    font-family: "Archivo", sans-serif; font-weight: 800; font-stretch: 112%;
+    font-size: clamp(64px, 9vw, 150px); line-height: .82; letter-spacing: -.02em;
+  }
+  .loader-gap {
+    width: 0; height: clamp(54px, 7.4vw, 124px);
+    position: relative; overflow: hidden;
+    transition: width .9s var(--ease), margin .9s var(--ease);
+  }
+  .loader-gap.is-open { width: clamp(120px, 16vw, 260px); margin: 0 clamp(10px, 1.4vw, 22px); }
+  .loader-gap img {
+    position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover;
+    opacity: 0;
+  }
+  .loader-gap img.is-show { opacity: 1; }
+  .loader-count {
+    position: absolute; left: 50%; bottom: 3.2vh; transform: translateX(-50%);
+    font-size: 11px; font-weight: 600; letter-spacing: .06em; font-variant-numeric: tabular-nums;
+  }
+
+  /* ---------------- ヘッダー ---------------- */
+  .header {
+    position: fixed; inset: 0 0 auto 0; z-index: 20;
+    display: flex; justify-content: space-between; align-items: flex-start;
+    padding: var(--pad);
+    pointer-events: none;
+  }
+  .header > * { pointer-events: auto; }
+  .mini-logo {
+    font-family: "Archivo", sans-serif; font-weight: 800; font-stretch: 112%;
+    font-size: 22px; line-height: .9; letter-spacing: -.01em;
+  }
+  .menu {
+    display: flex; align-items: center; gap: 8px;
+    font-size: 11px; font-weight: 600; letter-spacing: .08em;
+  }
+  .menu i { display: grid; grid-template-columns: repeat(2, 3px); gap: 2px; }
+  .menu i::before, .menu i::after { content: ""; width: 3px; height: 3px; background: currentColor; box-shadow: 0 5px currentColor; }
+
+  /* ---------------- FV ---------------- */
+  .fv {
+    position: relative; height: 100vh; height: 100svh; min-height: 520px;
+    display: grid; grid-template-rows: auto 1fr auto;
+    padding: var(--pad);
+  }
+  .fv-top { display: flex; flex-direction: column; align-items: flex-start; gap: 16px; }
+  .fv-catch {
+    font-family: "Zen Kaku Gothic New", sans-serif; font-weight: 700;
+    font-size: clamp(15px, 1.25vw, 20px); line-height: 1.45; letter-spacing: .02em;
+  }
+  .fv-catch .mask { display: block; }
+  .btn {
+    display: inline-flex; align-items: center; gap: 12px;
+    padding: 10px 14px 10px 18px; border-radius: 99px;
+    background: var(--ink); color: #fff;
+    font-size: 10px; font-weight: 600; letter-spacing: .12em; white-space: nowrap;
+  }
+  .btn svg { width: 14px; transition: transform .4s var(--ease-out); }
+  .btn:hover svg { transform: translateX(4px); }
+
+  .wordmark {
+    align-self: center;
+    font-family: "Archivo", sans-serif; font-weight: 800; font-stretch: 112%;
+    line-height: .8; letter-spacing: -.035em;
+    white-space: nowrap;
+    display: flex; justify-content: space-between;
+    font-size: 30vw; /* JSで画面幅ぴったりに合わせる */
+    will-change: transform;
+  }
+  /* y・p の下に出る部分が切れないよう、マスクを下に広げる */
+  .wordmark .mask, .mini-logo .mask { padding: .02em 0 .22em; margin-bottom: -.22em; }
+  .wordmark { position: relative; z-index: 1; }
+
+  /* マウスでのぞける層：大きいロゴの上に重ね、軌跡の部分だけ描く */
+  .reveal {
+    position: absolute; inset: 0; z-index: 2;
+    width: 100%; height: 100%; display: block;
+    pointer-events: none;
+  }
+  .fv > :not(.reveal) { position: relative; z-index: 3; }
+  .fv > .wordmark { z-index: 1; }
+  /* のぞいた黒地の上でも読めるよう、上に乗る文字は反転させる */
+  /*   （差の合成で、白い面では黒、のぞいた黒地では白に見える。
+         ボタンは白地＋黒文字で書いておくと、白い面では黒地＋白文字に見える） */
+  .fv-top, .fv-bottom, .header { color: #fff; mix-blend-mode: difference; }
+  .fv-top .btn { background: #fff; color: #111; }
+
+  .fv-bottom {
+    display: flex; justify-content: space-between; align-items: flex-end; gap: 16px;
+    font-size: 11px; font-weight: 600; letter-spacing: .06em;
+  }
+  .fv-bottom .jp { font-family: "Zen Kaku Gothic New", sans-serif; letter-spacing: .08em; }
+  .fv-links { display: flex; gap: 14px; text-transform: uppercase; }
+  .fv-links span { opacity: .5; }
+
+  /* つながり確認用の次セクション */
+  .next {
+    min-height: 100vh; margin: 0 var(--pad); border-radius: 6px;
+    background: var(--night); color: #fff;
+    padding: 14vh 6vw; overflow: hidden;
+  }
+  .next small { font-size: 11px; letter-spacing: .2em; opacity: .6; }
+  .next h2 {
+    margin-top: 20px;
+    font-family: "Zen Kaku Gothic New", sans-serif; font-weight: 700;
+    font-size: clamp(28px, 4vw, 60px); line-height: 1.4; letter-spacing: .04em;
+  }
+  .next-grid { margin-top: 10vh; display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+  .next-grid img { width: 100%; aspect-ratio: 4 / 3; object-fit: cover; border-radius: 4px; display: block; }
+  footer { height: 30vh; }
+
+  .u-sp-only { display: none; }
+  @media (max-width: 767px) {
+    .u-sp-only { display: inline; }
+    .u-pc-only { display: none; }
+    .next-grid { grid-template-columns: repeat(2, 1fr); }
+    .fv-bottom { flex-direction: column; align-items: flex-start; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .mask > span, .wordmark .mask > span, .fade { transform: none !important; opacity: 1 !important; transition: none !important; }
+  }
+</style>
+</head>
+<body class="is-loading">
+
+<!-- 初回ローダー：S と C の間が開いて、実績画像がパラパラ切り替わる -->
+<div class="loader" id="loader" aria-hidden="true">
+  <div class="loader-row">
+    <span class="mask loader-letter"><span>S</span></span>
+    <div class="loader-gap" id="loaderGap"></div>
+    <span class="mask loader-letter" style="--d:80ms"><span>e</span></span>
+  </div>
+  <div class="loader-count" id="loaderCount">0</div>
+</div>
+
+<header class="header">
+  <a href="#" class="mini-logo" id="miniLogo" aria-label="Syncpiece">
+    <span class="mask" style="--i:0"><span>S</span></span><span class="mask" style="--i:1"><span>y</span></span><span class="mask" style="--i:2"><span>n</span></span><span class="mask" style="--i:3"><span>c</span></span><span class="mask" style="--i:4"><span>p</span></span><span class="mask" style="--i:5"><span>i</span></span><span class="mask" style="--i:6"><span>e</span></span><span class="mask" style="--i:7"><span>c</span></span><span class="mask" style="--i:8"><span>e</span></span>
+  </a>
+  <a href="#" class="menu fade" id="menu" style="--d:600ms">MENU <i></i></a>
+</header>
+
+<main>
+  <section class="fv" id="fv">
+    <div class="fv-top">
+      <p class="fv-catch" aria-label="その課題に、デザインとデジタルの力を。">
+        <span class="mask" aria-hidden="true"><span>その課題に、</span></span>
+        <span class="mask" aria-hidden="true" style="--i:1"><span>デザインとデジタルの力を。</span></span>
+      </p>
+      <a href="#" class="btn fade" style="--d:450ms">CONTACT
+        <svg viewBox="0 0 14 10" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M0 5h12M8.5 1.2 12.3 5 8.5 8.8"/></svg>
+      </a>
+    </div>
+
+    <canvas class="reveal" id="reveal" aria-hidden="true"></canvas>
+    <h1 class="wordmark" id="wordmark" aria-label="Syncpiece">
+      <span class="mask" aria-hidden="true" style="--i:0"><span>S</span></span><span class="mask" aria-hidden="true" style="--i:1"><span>y</span></span><span class="mask" aria-hidden="true" style="--i:2"><span>n</span></span><span class="mask" aria-hidden="true" style="--i:3"><span>c</span></span><span class="mask" aria-hidden="true" style="--i:4"><span>p</span></span><span class="mask" aria-hidden="true" style="--i:5"><span>i</span></span><span class="mask" aria-hidden="true" style="--i:6"><span>e</span></span><span class="mask" aria-hidden="true" style="--i:7"><span>c</span></span><span class="mask" aria-hidden="true" style="--i:8"><span>e</span></span>
+    </h1>
+
+    <div class="fv-bottom">
+      <p class="fade jp" style="--d:500ms">デザインとデジタルのクリエイティブパートナー</p>
+      <nav class="fv-links fade" style="--d:600ms">
+        <a href="#">Service</a><span>/</span><a href="#">Works</a><span>/</span><a href="#">Company</a>
+      </nav>
+    </div>
+  </section>
+
+  <section class="next">
+    <small>01 / WORKS</small>
+    <h2>つくるだけで終わらない。<br>その先の成果まで。</h2>
+    <div class="next-grid">
+      <img src="img/bo1.webp" alt="" loading="lazy"><img src="img/miyabun.webp" alt="" loading="lazy">
+      <img src="img/eluxcard.webp" alt="" loading="lazy"><img src="img/web-top.webp" alt="" loading="lazy">
+    </div>
+  </section>
+  <footer></footer>
+</main>
+
+<script>
+(() => {
+  const params = new URLSearchParams(location.search);
+  const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+  const nextFrame = () => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+
+  const loader = document.getElementById("loader");
+  const gap = document.getElementById("loaderGap");
+  const count = document.getElementById("loaderCount");
+  const fv = document.getElementById("fv");
+  const header = document.querySelector(".header");
+  const wordmark = document.getElementById("wordmark");
+  const miniLogo = document.getElementById("miniLogo");
+  let revealStart = null;
+
+  // ---- ワードマークを画面幅ぴったりに合わせる ----
+  function fit() {
+    const avail = fv.clientWidth - parseFloat(getComputedStyle(fv).paddingLeft) * 2;
+    const measure = (px) => {
+      wordmark.style.fontSize = px + "px";
+      wordmark.style.width = "max-content";
+      const w = wordmark.getBoundingClientRect().width;
+      wordmark.style.width = "";
+      return w;
+    };
+    // 文字幅は字形のヒンティングで完全に比例しないので、2回測って合わせる
+    let size = 100 * avail / measure(100);
+    size *= avail / measure(size);
+    // 縦が足りない画面では高さで制限
+    size = Math.min(size, (fv.clientHeight * 0.62) / 0.8);
+    wordmark.style.fontSize = size + "px";
+  }
+  fit();
+  new ResizeObserver(fit).observe(fv);
+  document.fonts && document.fonts.ready.then(fit);
+
+  // ---- 初回ローダー ----
+  const IMGS = ["bo1", "miyabun", "eluxcard", "uNIQU3", "soba2", "hinomaru", "3D", "ay", "web-top", "graphic-top", "bo3", "works-logo"];
+
+  async function runLoader() {
+    const imgs = IMGS.map((n) => {
+      const img = new Image();
+      img.src = "img/" + n + ".webp";
+      img.alt = "";
+      gap.appendChild(img);
+      return img;
+    });
+    await nextFrame();
+    loader.querySelectorAll(".mask").forEach((m) => m.classList.add("is-in"));
+    await wait(700);
+    gap.classList.add("is-open");
+
+    // 画像を高速で切り替えながらカウンターを 0→100
+    const DURATION = 2200;
+    const start = performance.now();
+    let last = -1;
+    await new Promise((done) => {
+      const tick = (now) => {
+        const t = Math.min(1, (now - start) / DURATION);
+        const eased = 1 - Math.pow(1 - t, 2);
+        count.textContent = Math.round(eased * 100);
+        const idx = Math.floor((now - start) / 110) % imgs.length;
+        if (idx !== last) {
+          imgs.forEach((im, i) => im.classList.toggle("is-show", i === idx));
+          last = idx;
+        }
+        t < 1 ? requestAnimationFrame(tick) : done();
+      };
+      requestAnimationFrame(tick);
+    });
+
+    gap.classList.remove("is-open");
+    await wait(750);
+    loader.classList.add("is-out");
+    await wait(450); // 幕が上がりきる少し前から FV の文字を出す
+  }
+
+  function revealFv() {
+    document.body.classList.remove("is-loading");
+    fv.classList.add("is-in");
+    header.querySelector(".menu").classList.add("is-in");
+    setTimeout(() => loader.remove(), 1200);
+    revealStart && revealStart();
+  }
+
+  const seen = sessionStorage.getItem("sync-intro");
+  const showLoader = !reduce && !params.has("nointro") && (!seen || params.has("intro"));
+  (async () => {
+    if (showLoader) {
+      sessionStorage.setItem("sync-intro", "1");
+      await runLoader();
+    } else {
+      loader.style.display = "none";
+      await nextFrame();
+    }
+    revealFv();
+  })();
+
+  // =================================================================
+  // マウスでのぞく演出
+  //   白い面の上を動かしたところだけ、黒地に「いろいろな姿の Syncpiece」が見える。
+  //   見える姿は少しずつ切り替わり続ける。
+  //   ※ 3DCGなどの動画を用意したら、?video=ファイル名 でその動画に差し替えられる
+  // =================================================================
+  const revealCanvas = document.getElementById("reveal");
+  const out = revealCanvas.getContext("2d");
+  const makeCanvas = () => document.createElement("canvas");
+  const mask = makeCanvas(), mctx = mask.getContext("2d");   // 軌跡（白い部分が見える）
+  const scene = makeCanvas(), sctx = scene.getContext("2d"); // 見せる絵
+  const MASK_SCALE = 0.5;     // 軌跡は半分の解像度で十分（どうせぼかす）
+  const STYLE_MS = 900;       // 1つの姿を見せる時間
+  const FADE_MS = 220;        // 切り替えのクロスフェード
+  const TRAIL_LIFE = 1100;    // 軌跡が消えるまでの時間（ms）
+  let W = 0, H = 0, dpr = 1, styles = [], glyphs = [], fontPx = 0;
+
+  // 作品画像（「作品で埋まった文字」に使う）
+  const WORK_IMGS = ["bo1", "miyabun", "eluxcard", "uNIQU3", "soba2", "hinomaru", "graphic-top", "web-top", "3D"].map((n) => {
+    const img = new Image(); img.src = "img/" + n + ".webp"; return img;
+  });
+
+  // 動画への差し替え（任意）
+  let video = null;
+  if (params.get("video")) {
+    video = document.createElement("video");
+    Object.assign(video, { src: params.get("video"), muted: true, loop: true, playsInline: true, autoplay: true });
+    video.play().catch(() => {});
+  }
+
+  // 大きいロゴの各文字の位置を、キャンバス上の座標で取る
+  function measureGlyphs() {
+    const cRect = revealCanvas.getBoundingClientRect();
+    const cs = getComputedStyle(wordmark);
+    fontPx = parseFloat(cs.fontSize);
+    sctx.font = `800 ${fontPx}px Archivo`;
+    const m = sctx.measureText("S");
+    // せり上がり途中でも正しく測れるよう、動かない外側の .mask を基準にする
+    glyphs = [...wordmark.querySelectorAll(".mask")].map((el) => {
+      const r = el.getBoundingClientRect();
+      const lh = parseFloat(cs.lineHeight) || fontPx * 0.8;
+      const spanTop = r.top + parseFloat(getComputedStyle(el).paddingTop);
+      // inline-block の行の高さの中で、文字の上下は中央に置かれる → ベースラインを計算
+      const contentTop = spanTop + (lh - (m.fontBoundingBoxAscent + m.fontBoundingBoxDescent)) / 2;
+      return {
+        ch: el.textContent.trim(),
+        cx: r.left - cRect.left + r.width / 2,
+        base: contentTop + m.fontBoundingBoxAscent - cRect.top,
+        w: r.width,
+      };
+    });
+  }
+
+  // 各文字を、元の文字の中心・ベースラインに合わせて描く
+  function word(ctx, font, paint, scale = 1) {
+    ctx.save();
+    ctx.font = font;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "alphabetic";
+    glyphs.forEach((g, i) => paint(ctx, g, i, scale));
+    ctx.restore();
+  }
+  const SANS = () => `800 ${fontPx}px Archivo`;
+  const SERIF = (italic) => `${italic ? "italic " : ""}400 ${fontPx * 1.12}px "Instrument Serif"`;
+
+  function layer(draw) {
+    const c = makeCanvas(); c.width = W; c.height = H;
+    const ctx = c.getContext("2d");
+    ctx.scale(dpr, dpr);
+    ctx.fillStyle = "#0d0d0d"; ctx.fillRect(0, 0, W, H);
+    draw(ctx);
+    return c;
+  }
+  // 文字の形で切り抜いた上に、好きな絵を描く
+  function clipped(ctx, font, paintInside) {
+    const c = makeCanvas(); c.width = W; c.height = H;
+    const t = c.getContext("2d"); t.scale(dpr, dpr);
+    paintInside(t);
+    // 文字の形を別のキャンバスに描いてから一度に切り抜く
+    // （1文字ずつ destination-in すると、前の文字が消えてしまう）
+    const m = makeCanvas(); m.width = W; m.height = H;
+    const mt = m.getContext("2d"); mt.scale(dpr, dpr);
+    word(mt, font, (x, g) => x.fillText(g.ch, g.cx, g.base));
+    t.setTransform(1, 0, 0, 1, 0, 0);
+    t.globalCompositeOperation = "destination-in";
+    t.drawImage(m, 0, 0);
+    ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.drawImage(c, 0, 0); ctx.restore();
+  }
+  const wordTop = () => Math.min(...glyphs.map((g) => g.base)) - fontPx * 0.78;
+  const wordH = () => fontPx * 1.0;
+
+  // ---- いろいろな姿 ----
+  const STYLE_FACTORIES = [
+    // 1. クローム
+    () => layer((ctx) => {
+      const top = wordTop(), h = wordH();
+      const gr = ctx.createLinearGradient(0, top, 0, top + h);
+      [[0, "#ffffff"], [.28, "#9a9a9a"], [.45, "#f5f5f5"], [.6, "#3b3b3b"], [.8, "#d9d9d9"], [1, "#6d6d6d"]].forEach(([o, c]) => gr.addColorStop(o, c));
+      word(ctx, SANS(), (x, g) => { x.fillStyle = gr; x.fillText(g.ch, g.cx, g.base); });
+    }),
+    // 2. 作品画像で埋まった文字
+    () => layer((ctx) => clipped(ctx, SANS(), (t) => {
+      const top = wordTop(), h = wordH();
+      glyphs.forEach((g, i) => {
+        const img = WORK_IMGS[i % WORK_IMGS.length];
+        if (!img.complete || !img.naturalWidth) { t.fillStyle = "#444"; t.fillRect(g.cx - g.w, top, g.w * 2, h); return; }
+        const bw = g.w * 1.6, bh = h, ir = img.naturalWidth / img.naturalHeight;
+        let sw = img.naturalWidth, sh = img.naturalHeight;
+        if (ir > bw / bh) sw = sh * bw / bh; else sh = sw * bh / bw;
+        t.drawImage(img, (img.naturalWidth - sw) / 2, (img.naturalHeight - sh) / 2, sw, sh, g.cx - bw / 2, top, bw, bh);
+      });
+    })),
+    // 3. 青いネオン（細いセリフ体）
+    () => layer((ctx) => {
+      word(ctx, SERIF(true), (x, g) => {
+        x.lineWidth = Math.max(1.5, fontPx * 0.012);
+        x.strokeStyle = "#7da2ff"; x.shadowColor = "#3d6bff"; x.shadowBlur = fontPx * 0.12;
+        x.strokeText(g.ch, g.cx, g.base); x.shadowBlur = fontPx * 0.04; x.strokeText(g.ch, g.cx, g.base);
+      });
+    }),
+    // 4. ドット（網点）
+    () => layer((ctx) => {
+      const c = makeCanvas(); c.width = Math.ceil(W / dpr); c.height = Math.ceil(H / dpr);
+      const t = c.getContext("2d"); t.fillStyle = "#fff";
+      word(t, SANS(), (x, g) => x.fillText(g.ch, g.cx, g.base));
+      const step = Math.max(5, fontPx / 26);
+      const data = t.getImageData(0, 0, c.width, c.height).data;
+      ctx.fillStyle = "#ff5a36";
+      for (let y = step / 2; y < c.height; y += step) {
+        for (let x = step / 2; x < c.width; x += step) {
+          const a = data[(Math.floor(y) * c.width + Math.floor(x)) * 4 + 3] / 255;
+          if (a > 0.05) { ctx.beginPath(); ctx.arc(x, y, step * 0.48 * a, 0, Math.PI * 2); ctx.fill(); }
+        }
+      }
+    }),
+    // 5. ピンクの風船っぽいつや
+    () => layer((ctx) => {
+      const top = wordTop(), h = wordH();
+      const gr = ctx.createLinearGradient(0, top, 0, top + h);
+      gr.addColorStop(0, "#ff8ac4"); gr.addColorStop(.5, "#ff2f8e"); gr.addColorStop(1, "#7a0040");
+      word(ctx, SANS(), (x, g) => {
+        x.fillStyle = gr; x.shadowColor = "rgba(255,47,142,.55)"; x.shadowBlur = fontPx * 0.08;
+        x.fillText(g.ch, g.cx, g.base);
+      });
+      clipped(ctx, SANS(), (t) => {
+        const hl = t.createLinearGradient(0, top, 0, top + h * .5);
+        hl.addColorStop(0, "rgba(255,255,255,.75)"); hl.addColorStop(1, "rgba(255,255,255,0)");
+        t.fillStyle = hl; t.fillRect(0, top + h * .08, W, h * .3);
+      });
+    }),
+    // 6. 白い輪郭が何重にも
+    () => layer((ctx) => {
+      for (let k = 4; k >= 0; k--) {
+        word(ctx, SANS(), (x, g) => {
+          x.lineWidth = Math.max(1, fontPx * 0.006);
+          x.strokeStyle = `rgba(255,255,255,${1 - k * 0.2})`;
+          x.strokeText(g.ch, g.cx, g.base - k * fontPx * 0.05);
+        });
+      }
+    }),
+    // 7. セリフ体の白
+    () => layer((ctx) => word(ctx, SERIF(false), (x, g) => { x.fillStyle = "#f3f2ee"; x.fillText(g.ch, g.cx, g.base); })),
+    // 8. ずれた色版（グリッチ）
+    () => layer((ctx) => {
+      const d = fontPx * 0.025;
+      ctx.globalCompositeOperation = "lighter";
+      [["#ff0040", -d, 0], ["#00e0ff", d, d * .4], ["#c8ff00", 0, -d * .4]].forEach(([c, dx, dy]) =>
+        word(ctx, SANS(), (x, g) => { x.fillStyle = c; x.fillText(g.ch, g.cx + dx, g.base + dy); }));
+    }),
+    // 9. 横じま
+    () => layer((ctx) => clipped(ctx, SANS(), (t) => {
+      const top = wordTop(), h = wordH(), step = Math.max(4, fontPx / 30);
+      t.fillStyle = "#e9ff3b";
+      for (let y = top; y < top + h; y += step) t.fillRect(0, y, W, step * 0.45);
+    })),
+  ];
+
+  function buildReveal() {
+    const r = revealCanvas.getBoundingClientRect();
+    dpr = Math.min(devicePixelRatio || 1, 2);
+    W = Math.round(r.width * dpr); H = Math.round(r.height * dpr);
+    revealCanvas.width = W; revealCanvas.height = H;
+    scene.width = W; scene.height = H;
+    mask.width = Math.round(W * MASK_SCALE); mask.height = Math.round(H * MASK_SCALE);
+    measureGlyphs();
+    styles = STYLE_FACTORIES.map((f) => f());
+  }
+
+  // ---- 軌跡 ----
+  const ptr = { x: 0, y: 0, tx: 0, ty: 0, active: false, last: 0 };
+  let revealOn = false;
+  // 軌跡は「置いた円のリスト」で持ち、毎フレーム描き直す（古い円ほど小さく薄く）
+  let trail = [];
+  function stamp(x, y, radius, alpha) {
+    const s = dpr * MASK_SCALE;
+    mctx.globalAlpha = alpha;
+    const g = mctx.createRadialGradient(x * s, y * s, 0, x * s, y * s, radius * s);
+    g.addColorStop(0, "rgba(255,255,255,1)");
+    g.addColorStop(0.6, "rgba(255,255,255,.9)");
+    g.addColorStop(1, "rgba(255,255,255,0)");
+    mctx.fillStyle = g;
+    mctx.beginPath(); mctx.arc(x * s, y * s, radius * s, 0, Math.PI * 2); mctx.fill();
+  }
+  function onPointer(e) {
+    const r = revealCanvas.getBoundingClientRect();
+    ptr.tx = e.clientX - r.left; ptr.ty = e.clientY - r.top;
+    if (!ptr.active) { ptr.x = ptr.tx; ptr.y = ptr.ty; ptr.active = true; }
+    ptr.last = performance.now();
+  }
+  addEventListener("pointermove", onPointer, { passive: true });
+
+  // マウスがない端末（スマホ）は、自動でゆっくりさまよう
+  const autoWander = params.has("wander") || !matchMedia("(hover: hover) and (pointer: fine)").matches;
+
+  function frame(now) {
+    requestAnimationFrame(frame);
+    if (!revealOn || !W) return;
+    const visible = fv.getBoundingClientRect().bottom > 0;
+    if (!visible) return;
+
+    // 自動でさまよう（スマホ）
+    if (autoWander) {
+      const t = now / 1000, r = revealCanvas.getBoundingClientRect();
+      ptr.tx = r.width * (0.5 + 0.38 * Math.sin(t * 0.55)) ;
+      ptr.ty = (glyphs[0]?.base || r.height / 2) - fontPx * 0.3 + fontPx * 0.3 * Math.sin(t * 1.3);
+      if (!ptr.active) { ptr.x = ptr.tx; ptr.y = ptr.ty; ptr.active = true; }
+      ptr.last = now;
+    }
+
+    // ポインターを少し遅れて追いかけ、通った線上にやわらかい円を置く
+    if (ptr.active && now - ptr.last < 120) {
+      const px = ptr.x, py = ptr.y;
+      ptr.x += (ptr.tx - ptr.x) * 0.35;
+      ptr.y += (ptr.ty - ptr.y) * 0.35;
+      const dist = Math.hypot(ptr.x - px, ptr.y - py);
+      const base = Math.max(60, Math.min(W, H) / dpr * 0.11);
+      const radius = Math.min(base * 2.2, base + dist * 1.6); // 速く動かすほど大きく
+      const n = Math.max(1, Math.ceil(dist / (radius * 0.25)));
+      if (dist > 0.5 || !trail.length) {
+        for (let i = 1; i <= n; i++) trail.push({ x: px + (ptr.x - px) * i / n, y: py + (ptr.y - py) * i / n, r: radius, born: now });
+      }
+    }
+    trail = trail.filter((p) => now - p.born < TRAIL_LIFE);
+    // 何も見えていないときは描画を止める
+    if (!trail.length) { if (revealCanvas.dataset.clear !== "1") { out.clearRect(0, 0, W, H); revealCanvas.dataset.clear = "1"; } return; }
+    revealCanvas.dataset.clear = "0";
+    mctx.clearRect(0, 0, mask.width, mask.height);
+    trail.forEach((p) => {
+      const life = 1 - (now - p.born) / TRAIL_LIFE;     // 1 → 0
+      const e = life * life * (3 - 2 * life);           // なめらかに
+      stamp(p.x, p.y, p.r * (0.45 + 0.55 * e), e);
+    });
+    mctx.globalAlpha = 1;
+    if (params.has("full")) { mctx.fillStyle = "#fff"; mctx.fillRect(0, 0, mask.width, mask.height); } // 確認用：全部見せる
+
+    // 見せる絵を作る（姿の切り替え）
+    sctx.globalCompositeOperation = "source-over";
+    sctx.globalAlpha = 1;
+    if (video && video.readyState >= 2) {
+      sctx.fillStyle = "#0d0d0d"; sctx.fillRect(0, 0, W, H);
+      const vr = video.videoWidth / video.videoHeight, vw = W, vh = W / vr;
+      sctx.drawImage(video, 0, (H - vh) / 2, vw, vh);
+    } else {
+      const k = now / STYLE_MS, f = (k % 1) * STYLE_MS;
+      const i = params.has("style") ? +params.get("style") % styles.length : Math.floor(k) % styles.length; // ?style=番号 で固定（確認用）
+      sctx.drawImage(styles[i], 0, 0);
+      if (!params.has("style") && f > STYLE_MS - FADE_MS) {
+        sctx.globalAlpha = (f - (STYLE_MS - FADE_MS)) / FADE_MS;
+        sctx.drawImage(styles[(i + 1) % styles.length], 0, 0);
+        sctx.globalAlpha = 1;
+      }
+    }
+
+    // 軌跡の形で切り抜いて表示
+    out.globalCompositeOperation = "copy";
+    out.drawImage(mask, 0, 0, W, H);
+    out.globalCompositeOperation = "source-in";
+    out.drawImage(scene, 0, 0);
+  }
+
+  // FVの文字が出てから有効にする（フォントの読み込みも待つ）
+  revealStart = async () => {
+    if (reduce) return;
+    if (document.fonts) {
+      await document.fonts.load(`800 100px Archivo`);
+      await document.fonts.load(`400 100px "Instrument Serif"`);
+      await document.fonts.load(`italic 400 100px "Instrument Serif"`);
+      await document.fonts.ready;
+    }
+    await wait(1800); // 大きいロゴがせり上がりきるのを待つ
+    fit();
+    buildReveal();
+    revealOn = true;
+    // 作品画像が後から読み込まれたら作り直す
+    Promise.all(WORK_IMGS.map((im) => im.decode().catch(() => {}))).then(buildReveal);
+  };
+  let rebuildTimer;
+  new ResizeObserver(() => {
+    if (!revealOn) return;
+    clearTimeout(rebuildTimer);
+    rebuildTimer = setTimeout(buildReveal, 150);
+  }).observe(fv);
+  requestAnimationFrame(frame);
+
+  // ---- スクロール：大きいロゴが画面から抜けたら、左上の小さいロゴを出す ----
+  let miniShown = false;
+  function onScroll() {
+    const y = scrollY;
+    // 大きいロゴは少しだけゆっくり上へ（パララックス）。のぞける層も一緒に動かす
+    if (!reduce) {
+      const tf = `translate3d(0, ${y * 0.18}px, 0)`;
+      wordmark.style.transform = tf;
+      revealCanvas.style.transform = tf;
+    }
+    const show = wordmark.getBoundingClientRect().bottom < header.offsetHeight + 20;
+    if (show !== miniShown) {
+      miniShown = show;
+      miniLogo.classList.toggle("is-in", show);
+      fv.querySelector(".fv-top").style.visibility = show ? "hidden" : "";
+    }
+  }
+  addEventListener("scroll", onScroll, { passive: true });
+  onScroll();
+})();
+</script>
+</body>
+</html>

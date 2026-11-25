@@ -1,0 +1,731 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="robots" content="noindex, nofollow">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Syncpiece FV Demo — Works Cube / Particles</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@112,800&family=Inter:wght@400;500;600&family=Zen+Kaku+Gothic+New:wght@500;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #000;
+    --fg: #f2f0ec;
+    --dim: rgba(242, 240, 236, .5);
+    --pad: clamp(16px, 2.2vw, 32px);
+    --ease-out: cubic-bezier(.16, 1, .3, 1);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { background: var(--bg); color: var(--fg); }
+  body {
+    font-family: "Inter", "Zen Kaku Gothic New", sans-serif;
+    -webkit-font-smoothing: antialiased;
+    word-break: auto-phrase;
+    text-wrap: pretty;
+  }
+  a { color: inherit; text-decoration: none; }
+  .is-loading { overflow: hidden; }
+
+  /* ---------------- ① ローディング ---------------- */
+  .loader { position: fixed; inset: 0; z-index: 100; background: #000; transition: opacity .6s ease; }
+  .loader.is-done { opacity: 0; pointer-events: none; }
+  .loader canvas { width: 100%; height: 100%; display: block; }
+  .loader-count {
+    position: absolute; left: 50%; bottom: 4vh; transform: translateX(-50%);
+    font-size: 10px; font-weight: 600; letter-spacing: .2em; color: var(--dim); font-variant-numeric: tabular-nums;
+  }
+
+  /* ---------------- 画面のまわり ---------------- */
+  .header {
+    position: fixed; inset: 0 0 auto 0; z-index: 20;
+    display: flex; justify-content: space-between; align-items: center;
+    padding: var(--pad);
+  }
+  .logo { font-family: "Archivo", sans-serif; font-weight: 800; font-stretch: 112%; font-size: 18px; letter-spacing: -.01em; }
+  .header nav { display: flex; gap: clamp(16px, 3vw, 44px); font-size: 11px; font-weight: 600; letter-spacing: .1em; }
+
+  .stage-wrap { position: relative; height: 460vh; }
+  .stage { position: sticky; top: 0; height: 100vh; height: 100svh; overflow: hidden; }
+  /* 背景（写真・キューブ・粒子）は画面に固定し、その上をページがスクロールする */
+  canvas.gl { position: fixed; inset: 0; width: 100vw; height: 100vh; height: 100svh; display: block; z-index: 0; }
+  .stage { z-index: 1; }
+
+  .hint {
+    position: absolute; left: 50%; bottom: var(--pad); transform: translateX(-50%); z-index: 3;
+    font-size: 9px; font-weight: 600; letter-spacing: .3em; color: var(--dim); pointer-events: none;
+    display: flex; flex-direction: column; align-items: center; gap: 10px;
+  }
+  .hint::after { content: ""; width: 1px; height: 36px; background: currentColor; animation: hint 2s ease-in-out infinite; transform-origin: top; }
+  @keyframes hint { 0% { transform: scaleY(0); } 50% { transform: scaleY(1); transform-origin: top; } 51% { transform-origin: bottom; } 100% { transform: scaleY(0); transform-origin: bottom; } }
+
+  /* ---------------- ⑤ キャッチ ---------------- */
+  .copy { position: absolute; z-index: 3; pointer-events: none; }
+  .copy.main {
+    left: var(--pad); bottom: calc(var(--pad) + 6vh);
+    font-family: "Zen Kaku Gothic New", sans-serif; font-weight: 700;
+    font-size: clamp(26px, 3.6vw, 58px); line-height: 1.45; letter-spacing: .08em;
+    text-shadow: 0 0 30px rgba(0, 0, 0, .9), 0 0 8px rgba(0, 0, 0, .8);
+  }
+  .copy.sub {
+    right: var(--pad); bottom: calc(var(--pad) + 6vh); text-align: right;
+    font-family: "Zen Kaku Gothic New", sans-serif; font-weight: 500;
+    font-size: clamp(12px, 1vw, 14px); line-height: 2; letter-spacing: .14em; color: rgba(242, 240, 236, .75);
+  }
+  .copy .line { display: block; overflow: hidden; white-space: nowrap; padding-bottom: .08em; }
+  .copy .line > span { display: inline-block; transform: translateY(110%); transition: transform 1.2s var(--ease-out); transition-delay: calc(var(--i, 0) * 90ms); }
+  .copy.is-in .line > span { transform: none; }
+  .copy.sub .line > span { transition-delay: calc(300ms + var(--i, 0) * 90ms); }
+
+  .next { min-height: 100vh; padding: 16vh 6vw; background: transparent; position: relative; z-index: 5; }
+  .next small { font-size: 11px; letter-spacing: .2em; color: var(--dim); }
+  .next h2 { margin-top: 18px; font-family: "Zen Kaku Gothic New", sans-serif; font-weight: 700; font-size: clamp(28px, 4vw, 60px); line-height: 1.4; letter-spacing: .04em; }
+
+  @media (max-width: 767px) {
+    .header nav { display: none; }
+    .copy.main { bottom: calc(var(--pad) + 120px); font-size: 24px; letter-spacing: .06em; }
+    .copy.sub { left: var(--pad); right: auto; text-align: left; bottom: calc(var(--pad) + 36px); font-size: 11px; }
+  }
+</style>
+<!-- スムーススクロール（Lenis） -->
+<script src="https://unpkg.com/lenis@1.1.13/dist/lenis.min.js"></script>
+<script type="importmap">
+{ "imports": { "three": "https://unpkg.com/three@0.170.0/build/three.module.js" } }
+</script>
+</head>
+<body class="is-loading">
+
+<div class="loader" id="loader" aria-hidden="true">
+  <canvas id="loaderCanvas"></canvas>
+  <p class="loader-count" id="loaderCount">0</p>
+</div>
+
+<canvas class="gl" id="gl"></canvas>
+
+<header class="header">
+  <a href="#" class="logo">Syncpiece</a>
+  <nav><a href="#">SERVICE</a><a href="#">WORKS</a><a href="#">COMPANY</a><a href="#">CONTACT</a></nav>
+</header>
+
+<main>
+  <div class="stage-wrap" id="stageWrap">
+    <section class="stage" id="stage">
+      <h1 class="copy main" id="copyMain" aria-label="その課題にデザインとデジタルの力を。">
+        <span class="line" aria-hidden="true"><span>その課題に</span></span>
+        <span class="line" aria-hidden="true" style="--i:1"><span>デザインとデジタルの力を。</span></span>
+      </h1>
+      <p class="copy sub" id="copySub">
+        <span class="line"><span>つくるだけで終わらない。</span></span>
+        <span class="line" style="--i:1"><span>その先の成果まで。</span></span>
+      </p>
+      <p class="hint" id="hint">SCROLL</p>
+    </section>
+  </div>
+  <section class="next">
+    <small>01 / WORKS</small>
+    <h2>つくるだけで終わらない。<br>その先の成果まで。</h2>
+  </section>
+</main>
+
+<script type="module">
+import * as THREE from "three";
+
+// =================================================================
+// 設定
+// =================================================================
+// syncpiece.com の実績写真（img/works/w01〜w49.webp）
+//   キューブ用に24枚（一面に2×2＝4枚 × 6面）、流れる演出だけに出る写真を12枚
+const CUBE_IMAGES = [
+  "w45", "w11", "w27", "w01", "w42", "w12", "w06", "w33", "w44", "w10", "w20", "w13",
+  "w02", "w09", "w29", "w16", "w41", "w14", "w22", "w36", "w47", "w03", "w31", "w24",
+];
+const EXTRA_IMAGES = []; // 流れる演出は、キューブ用24枚のうち一部だけで見せる（枚数を減らした）
+const FLOW_COUNT = 14;    // ② で流れて見える枚数（残りはキューブになるときに奥から現れる）
+const IMAGES = [...CUBE_IMAGES, ...EXTRA_IMAGES];
+
+// スクロール量（0〜1）と演出の対応
+//   0.00-0.10 ② 写真が中央へ吸い込まれていく（2〜3スクロール）
+//   0.08-0.22 ② → ③ 写真が集まってキューブになる
+//   0.22-0.50 ③ キューブが数回まわる
+//   0.50-0.60 ④ キューブが砂になって画面いっぱいにはじける
+//   0.58-0.76 ④ 粒子が形をつくる（以降は形を変えながら漂う背景）
+//   0.70      ⑤ キャッチが出る
+const T = {
+  gather: [0.08, 0.22],
+  spin: [0.22, 0.5],
+  burst: [0.5, 0.6],
+  form: [0.58, 0.76],
+  copy: 0.7,
+};
+
+const params = new URLSearchParams(location.search);
+const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
+const isMobile = matchMedia("(max-width: 767px)").matches;
+const clamp01 = (x) => Math.min(1, Math.max(0, x));
+const range = (a, b, x) => clamp01((x - a) / (b - a));
+const easeInOut = (t) => (t < .5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
+const easeOut = (t) => 1 - Math.pow(1 - t, 3);
+const lerp = THREE.MathUtils.lerp;
+const fract = (x) => x - Math.floor(x);
+
+// ファイルを直接開いた（file://）ときは、画像ファイルを 3D 表示や粒子の色取りに使えないので、
+// 写真を埋め込んだデータを先に読む（サーバー経由のときは読まない）
+if (location.protocol === "file:") {
+  await new Promise((done) => {
+    const s = document.createElement("script");
+    s.src = "img/works/works-data.js";
+    s.onload = s.onerror = done;
+    document.head.appendChild(s);
+  });
+}
+const srcOf = (name) => (window.WORKS_DATA && window.WORKS_DATA[name]) || "img/works/" + name + ".webp";
+
+// 写真を読み込む（読み込み具合をローディングに出す）
+let loadedCount = 0;
+const imagePromises = IMAGES.map((name) => new Promise((resolve) => {
+  const img = new Image();
+  img.onload = () => { loadedCount++; resolve(img); };
+  img.onerror = () => { loadedCount++; resolve(null); };
+  img.src = srcOf(name);
+}));
+
+// =================================================================
+// ① ローディング：「Syncpiece」の輪郭が、ペンでシャシャッと描くように線画される
+//    描き終わったら、線が砂になって散る（以降の演出とつなげる）
+// =================================================================
+async function runLoader() {
+  const loader = document.getElementById("loader");
+  const cvs = document.getElementById("loaderCanvas");
+  const countEl = document.getElementById("loaderCount");
+  const ctx = cvs.getContext("2d");
+  const dpr = Math.min(devicePixelRatio || 1, 2);
+  const W = innerWidth, H = innerHeight;
+  cvs.width = W * dpr; cvs.height = H * dpr;
+  ctx.scale(dpr, dpr);
+
+  await document.fonts.load('800 100px "Archivo"');
+  // 1文字ずつ細い輪郭線を描いて、線の上の点を取る
+  const fontSize = Math.min(W * 0.075, 85);
+  const font = `800 ${fontSize}px Archivo`;
+  const off = document.createElement("canvas"); off.width = W; off.height = H;
+  const o = off.getContext("2d", { willReadFrequently: true });
+  o.font = font; o.textBaseline = "middle"; o.strokeStyle = "#fff"; o.lineWidth = 0.9;
+  const word = "Syncpiece";
+  let x0 = W / 2 - o.measureText(word).width / 2;
+  const letters = [];
+  [...word].forEach((ch, li) => {
+    const w = o.measureText(ch).width;
+    o.clearRect(0, 0, W, H);
+    o.strokeText(ch, x0, H / 2);
+    const left = Math.max(0, Math.floor(x0 - 4)), right = Math.min(W, Math.ceil(x0 + w + 4));
+    const top = Math.max(0, Math.floor(H / 2 - fontSize)), bottom = Math.min(H, Math.ceil(H / 2 + fontSize));
+    const data = o.getImageData(left, top, right - left, bottom - top).data;
+    const pts = [];
+    let cx = 0, cy = 0;
+    for (let y = 0; y < bottom - top; y++) for (let x = 0; x < right - left; x++) {
+      if (data[(y * (right - left) + x) * 4 + 3] > 80) { pts.push({ x: left + x, y: top + y }); cx += left + x; cy += top + y; }
+    }
+    cx /= pts.length || 1; cy /= pts.length || 1;
+    // 文字の中心から見た角度の順に並べる → 順に出すと、ぐるっとなぞって描いているように見える
+    const start = Math.random() * Math.PI * 2;
+    pts.forEach((q) => {
+      q.k = ((Math.atan2(q.y - cy, q.x - cx) - start + Math.PI * 4) % (Math.PI * 2)) / (Math.PI * 2);
+      q.k = Math.min(1, q.k * 0.9 + Math.random() * 0.1); // 少しだけ前後させて「シャシャッ」と
+      q.jx = (Math.random() - 0.5) * 6; q.jy = (Math.random() - 0.5) * 6; // 描いた直後のブレ
+      q.ex = (Math.random() - 0.3) * 120; q.ey = (Math.random() - 0.6) * 90; // 散るときの向き
+      q.d = Math.random();
+    });
+    letters.push({ pts, delay: li * 0.075 });
+    x0 += w;
+  });
+
+  const draw = (drawT, scatter) => {
+    ctx.clearRect(0, 0, W, H);
+    ctx.fillStyle = "#f2f0ec";
+    for (const L of letters) {
+      // 1文字を描く時間は全体の 40%、文字ごとに少しずつ遅れて描き始める
+      const lt = clamp01((drawT - L.delay) / 0.4);
+      for (const q of L.pts) {
+        if (q.k > lt) continue;
+        const age = clamp01((lt - q.k) * 6);        // 描かれてからの時間
+        const settle = 1 - easeOut(age);
+        const sc = easeOut(clamp01((scatter - q.d * 0.4) / 0.6));
+        ctx.globalAlpha = (0.35 + 0.65 * age) * (1 - sc);
+        ctx.fillRect(q.x + q.jx * settle + q.ex * sc, q.y + q.jy * settle + q.ey * sc, 1, 1);
+      }
+    }
+    ctx.globalAlpha = 1;
+  };
+  const play = (ms, fn) => new Promise((done) => {
+    const start = performance.now();
+    const tick = (now) => { const t = clamp01((now - start) / ms); fn(t); t < 1 ? requestAnimationFrame(tick) : done(); };
+    requestAnimationFrame(tick);
+  });
+  const total = 1 + letters[letters.length - 1].delay;
+  // 描く（写真の読み込みを待ちながら）
+  await play(1400, (t) => { draw(t * total, 0); countEl.textContent = Math.round(Math.min(t, loadedCount / IMAGES.length) * 100); });
+  await Promise.all(imagePromises);
+  countEl.textContent = "100";
+  await play(450, () => draw(total, 0));
+  // 線が砂になって散る
+  await play(800, (t) => draw(total, t));
+  loader.classList.add("is-done");
+  document.body.classList.remove("is-loading");
+  setTimeout(() => loader.remove(), 700);
+}
+
+// =================================================================
+// 基本セットアップ
+// =================================================================
+const canvas = document.getElementById("gl");
+const stage = document.getElementById("stage");
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.setClearColor(0x000000);
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(35, 1, 0.1, 200);
+camera.position.set(0, 0, 12);
+
+// =================================================================
+// 写真のカード（白黒寄り・奥ほど暗く）
+// =================================================================
+const cardVS = /* glsl */`
+  varying vec2 vUv;
+  varying float vDepth;
+  void main() {
+    vUv = uv;
+    vec4 mv = modelViewMatrix * vec4(position, 1.0);
+    vDepth = -mv.z;
+    gl_Position = projectionMatrix * mv;
+  }
+`;
+const cardFS = /* glsl */`
+  uniform sampler2D uMap;
+  uniform float uOpacity;
+  uniform float uCrop;    // 写真の横方向の切り抜き（1 = そのまま、小さいほど中央を切り出す）
+  uniform float uMono;    // 白黒寄りの度合い
+  uniform float uLine;    // 線画の度合い（0 = 写真、1 = 線画）
+  uniform vec2 uTexel;    // 画像1ピクセルの大きさ
+  varying vec2 vUv;
+  varying float vDepth;
+  float lum(vec2 uv) { return dot(texture2D(uMap, uv).rgb, vec3(0.299, 0.587, 0.114)); }
+  void main() {
+    vec2 uv = vec2((vUv.x - 0.5) * uCrop + 0.5, vUv.y);
+    vec3 c = texture2D(uMap, uv).rgb;
+    float l = dot(c, vec3(0.299, 0.587, 0.114));
+    c = mix(c, vec3(l), uMono);
+    c = (c - 0.5) * 1.08 + 0.5;            // 少しだけコントラストを上げる
+    // 線画：明るさが急に変わるところ（輪郭）だけを白い線にする（ソーベルフィルタ）
+    if (uLine > 0.001) {
+      vec2 o = uTexel * 1.4;
+      float tl = lum(uv + vec2(-o.x, o.y)), tc = lum(uv + vec2(0.0, o.y)), tr = lum(uv + vec2(o.x, o.y));
+      float ml = lum(uv + vec2(-o.x, 0.0)),                                   mr = lum(uv + vec2(o.x, 0.0));
+      float bl = lum(uv + vec2(-o.x, -o.y)), bc = lum(uv + vec2(0.0, -o.y)), br = lum(uv + vec2(o.x, -o.y));
+      float gx = -tl - 2.0 * ml - bl + tr + 2.0 * mr + br;
+      float gy = -tl - 2.0 * tc - tr + bl + 2.0 * bc + br;
+      float edge = smoothstep(0.15, 0.38, length(vec2(gx, gy)));
+      c = mix(c, vec3(0.93) * edge, uLine);
+      // マスのふちにも細い線（キューブの形が背景に溶けないように）
+      float border = 1.0 - smoothstep(0.0, 0.012, min(min(vUv.x, 1.0 - vUv.x), min(vUv.y, 1.0 - vUv.y)));
+      c += vec3(0.55) * border * uLine;
+    }
+    c *= mix(1.0, 0.15, smoothstep(14.0, 32.0, vDepth)); // 奥へ行くほど暗く
+    gl_FragColor = vec4(c, uOpacity);
+    #include <colorspace_fragment>
+  }
+`;
+const cardGeo = new THREE.PlaneGeometry(1, 1);
+const cards = IMAGES.map((name, i) => {
+  const tex = new THREE.Texture();
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.anisotropy = 4;
+  const mat = new THREE.ShaderMaterial({
+    vertexShader: cardVS, fragmentShader: cardFS,
+    uniforms: { uMap: { value: tex }, uOpacity: { value: 0 }, uCrop: { value: 1 }, uMono: { value: 0.88 }, uLine: { value: 0 }, uTexel: { value: new THREE.Vector2(1 / 800, 1 / 500) } },
+    transparent: true, side: THREE.DoubleSide, depthWrite: true,
+  });
+  imagePromises[i].then((img) => {
+    if (!img) return;
+    tex.image = img; tex.needsUpdate = true;
+    mat.uniforms.uTexel.value.set(1 / img.naturalWidth, 1 / img.naturalHeight);
+  });
+  const m = new THREE.Mesh(cardGeo, mat);
+  m.userData = {
+    seed: Math.random(),
+    seed2: (i % FLOW_COUNT) / FLOW_COUNT + Math.random() * 0.04,
+    angle: (i * 2.399963) % (Math.PI * 2),
+    size: 0.5 + Math.pow(Math.random(), 1.4) * 1.1, // 大きさをばらばらに
+    inFlow: i % 24 < FLOW_COUNT,
+  };
+  scene.add(m);
+  return m;
+});
+
+// =================================================================
+// ③ キューブ：一面に2×2の4枚、6面で24枚
+// =================================================================
+const CUBE_HALF = 1.5;              // キューブの半分の大きさ
+const TILE = 1.44;                  // 1枚の大きさ（すき間 0.06）
+const TILE_OFF = 0.75;              // 面の中心から各写真の中心まで
+const FACES = [
+  { n: [0, 0, 1], u: [1, 0, 0], v: [0, 1, 0] },
+  { n: [1, 0, 0], u: [0, 0, -1], v: [0, 1, 0] },
+  { n: [0, 0, -1], u: [-1, 0, 0], v: [0, 1, 0] },
+  { n: [-1, 0, 0], u: [0, 0, 1], v: [0, 1, 0] },
+  { n: [0, 1, 0], u: [1, 0, 0], v: [0, 0, -1] },
+  { n: [0, -1, 0], u: [1, 0, 0], v: [0, 0, 1] },
+];
+const tiles = []; // { pos, quat, U, V, N }（キューブの中での位置と向き）
+FACES.forEach((f) => {
+  const N = new THREE.Vector3(...f.n), U = new THREE.Vector3(...f.u), V = new THREE.Vector3(...f.v);
+  const q = new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().makeBasis(U, V, N));
+  [[-1, 1], [1, 1], [-1, -1], [1, -1]].forEach(([a, b]) => {
+    const pos = N.clone().multiplyScalar(CUBE_HALF).addScaledVector(U, a * TILE_OFF).addScaledVector(V, b * TILE_OFF);
+    tiles.push({ pos, quat: q.clone(), U, V, N });
+  });
+});
+const cubeGroup = new THREE.Object3D(); // 回転を計算するための入れ物
+scene.add(cubeGroup);
+// キューブの中身：黒い箱（写真のすき間から裏側が透けないように）
+const cubeCore = new THREE.Mesh(new THREE.BoxGeometry(CUBE_HALF * 2 - 0.04, CUBE_HALF * 2 - 0.04, CUBE_HALF * 2 - 0.04), new THREE.MeshBasicMaterial({ color: 0x050505 }));
+cubeGroup.add(cubeCore);
+function cubeState(p, t) {
+  const spin = easeInOut(range(T.spin[0], T.spin[1], p));
+  cubeGroup.rotation.set(
+    0.5 + Math.sin(spin * Math.PI) * 0.45,
+    0.7 + spin * Math.PI * 4 + t * 0.18,          // 2回転 ＋ ゆっくり自転
+    Math.sin(spin * Math.PI * 2) * 0.12
+  );
+  const s = isMobile ? 0.62 : 1;
+  cubeGroup.scale.setScalar(s * (1 + Math.sin(spin * Math.PI) * 0.12));
+  cubeGroup.updateMatrixWorld();
+}
+
+// =================================================================
+// ④ 粒子：キューブの表面（写真の色）→ はじける → 形を変えながら漂う
+// =================================================================
+const PCOUNT = isMobile ? 32000 : 70000;
+let points = null;
+const pointsVS = /* glsl */`
+  attribute vec3 aCube;
+  attribute vec3 aBurst;
+  attribute vec3 aS0;
+  attribute vec3 aS1;
+  attribute vec3 aS2;
+  attribute float aBright;
+  attribute float aRand;
+  uniform mat4 uCubeMatrix;
+  uniform float uBurst;
+  uniform float uForm;
+  uniform vec3 uW;        // 3つの形の混ぜ具合
+  uniform float uTime;
+  uniform float uSize;
+  uniform float uPR;
+  uniform float uShapeScale;
+  varying float vBright;
+  varying float vAlpha;
+
+  mat3 rotY(float a) { float c = cos(a), s = sin(a); return mat3(c, 0., -s, 0., 1., 0., s, 0., c); }
+  mat3 rotX(float a) { float c = cos(a), s = sin(a); return mat3(1., 0., 0., 0., c, s, 0., -s, c); }
+  float easeOut(float t) { return 1.0 - pow(1.0 - t, 3.0); }
+
+  void main() {
+    // キューブの表面
+    vec3 cube = (uCubeMatrix * vec4(aCube, 1.0)).xyz;
+    // はじけた先（キューブの向きに合わせて回す）
+    vec3 burst = mat3(uCubeMatrix) * aBurst;
+    burst.z = min(burst.z, 6.0);
+    // 写真から粒子に切り替わった瞬間に、もう半分ほど崩れかけている状態からはじめる
+    float b = easeOut(clamp((uBurst + 0.22 - aRand * 0.45) / 0.72, 0.0, 1.0));
+    vec3 p = mix(cube, burst, b);
+
+    // 形：球の雲／輪／粒の塊 を混ぜ、ゆっくり回しながらホヨホヨ揺らす
+    vec3 shape = (aS0 * uW.x + aS1 * uW.y + aS2 * uW.z) * uShapeScale;
+    shape = rotY(uTime * 0.11 + sin(uTime * 0.05) * 0.8) * rotX(0.35 + sin(uTime * 0.13) * 0.35) * shape;
+    float ph = aRand * 40.0;
+    shape += vec3(
+      sin(uTime * 0.9 + ph + shape.y * 0.9),
+      sin(uTime * 0.7 + ph * 1.3 + shape.x * 0.8),
+      sin(uTime * 0.8 + ph * 0.7 + shape.z * 0.9)
+    ) * 0.14;
+    float f = smoothstep(0.0, 1.0, clamp(uForm * 1.35 - aRand * 0.35, 0.0, 1.0));
+    p = mix(p, shape, f);
+
+    vec4 mv = modelViewMatrix * vec4(p, 1.0);
+    gl_Position = projectionMatrix * mv;
+    float depth = -mv.z;
+    gl_PointSize = uSize * uPR * (12.0 / depth) * mix(1.0, 0.62, f);
+    // 形になったら、黒になじむグレーで控えめに
+    vBright = mix(aBright, 0.42 + aRand * 0.2, f);
+    // 奥ほど薄く（奥行き）
+    vAlpha = mix(1.0, 0.25, smoothstep(10.0, 22.0, depth));
+    // 形のときは粒を4割ほどに減らし、残りも少し透かす
+    vAlpha *= mix(1.0, step(aRand, 0.42) * 0.7, f);
+  }
+`;
+const pointsFS = /* glsl */`
+  uniform float uOpacity;
+  varying float vBright;
+  varying float vAlpha;
+  void main() {
+    vec2 d = gl_PointCoord - 0.5;
+    float r = length(d);
+    if (r > 0.5) discard;
+    float a = smoothstep(0.5, 0.2, r) * vAlpha * uOpacity;
+    gl_FragColor = vec4(vec3(vBright), a);
+    #include <colorspace_fragment>
+  }
+`;
+
+function gaussian() { return Math.sqrt(-2 * Math.log(Math.random() + 1e-9)) * Math.cos(2 * Math.PI * Math.random()); }
+function randomDir(v) {
+  const z = Math.random() * 2 - 1, a = Math.random() * Math.PI * 2, r = Math.sqrt(1 - z * z);
+  return v.set(r * Math.cos(a), z, r * Math.sin(a));
+}
+
+async function buildPoints() {
+  const imgs = await Promise.all(imagePromises.slice(0, CUBE_IMAGES.length));
+  // 写真の明るさを小さく取り出す（白黒寄りの粒にする）
+  const S = 128;
+  const samples = imgs.map((img) => {
+    const c = document.createElement("canvas"); c.width = c.height = S;
+    const g = c.getContext("2d", { willReadFrequently: true });
+    g.fillStyle = "#222"; g.fillRect(0, 0, S, S);
+    if (img) {
+      const side = Math.min(img.naturalWidth, img.naturalHeight);
+      g.drawImage(img, (img.naturalWidth - side) / 2, (img.naturalHeight - side) / 2, side, side, 0, 0, S, S);
+    }
+    let px;
+    try { px = g.getImageData(0, 0, S, S).data; } catch (e) { return null; }
+    // 線画と同じように輪郭の強さを出しておく（ソーベルフィルタ）
+    const L = (x, y) => { x = Math.max(0, Math.min(S - 1, x)); y = Math.max(0, Math.min(S - 1, y)); const o = (y * S + x) * 4; return (px[o] * 0.299 + px[o + 1] * 0.587 + px[o + 2] * 0.114) / 255; };
+    const edge = new Float32Array(S * S);
+    for (let y = 0; y < S; y++) for (let x = 0; x < S; x++) {
+      const gx = -L(x - 1, y - 1) - 2 * L(x - 1, y) - L(x - 1, y + 1) + L(x + 1, y - 1) + 2 * L(x + 1, y) + L(x + 1, y + 1);
+      const gy = -L(x - 1, y - 1) - 2 * L(x, y - 1) - L(x + 1, y - 1) + L(x - 1, y + 1) + 2 * L(x, y + 1) + L(x + 1, y + 1);
+      const e = Math.hypot(gx, gy);
+      edge[y * S + x] = Math.min(1, Math.max(0, (e - 0.15) / 0.23));
+    }
+    return edge;
+  });
+
+  const aCube = new Float32Array(PCOUNT * 3), aBurst = new Float32Array(PCOUNT * 3);
+  const aS0 = new Float32Array(PCOUNT * 3), aS1 = new Float32Array(PCOUNT * 3), aS2 = new Float32Array(PCOUNT * 3);
+  const aBright = new Float32Array(PCOUNT), aRand = new Float32Array(PCOUNT);
+  const v = new THREE.Vector3(), d = new THREE.Vector3();
+
+  for (let i = 0; i < PCOUNT; i++) {
+    const k = i % tiles.length, tile = tiles[k];
+    const u = Math.random() - 0.5, w = Math.random() - 0.5;
+    // キューブの表面（その写真の範囲のどこか）
+    v.copy(tile.pos).addScaledVector(tile.U, u * TILE).addScaledVector(tile.V, w * TILE).addScaledVector(tile.N, (Math.random() - 0.5) * 0.04);
+    v.toArray(aCube, i * 3);
+    // 色：写真のその位置の明るさ
+    const px = samples[k];
+    if (px) {
+      const sx = Math.min(S - 1, Math.floor((u + 0.5) * S)), sy = Math.min(S - 1, Math.floor((0.5 - w) * S));
+      aBright[i] = 0.03 + px[sy * S + sx] * 0.9; // 輪郭のところだけ明るい（線画の砂）
+    } else aBright[i] = 0.3;
+    // はじけた先：外向き＋ばらつき、画面いっぱいに広がる距離
+    d.copy(v).normalize().addScaledVector(randomDir(new THREE.Vector3()), 0.75).normalize();
+    d.multiplyScalar(4 + Math.pow(Math.random(), 0.6) * 16);
+    d.toArray(aBurst, i * 3);
+    // 形 0：球の雲（中心が濃い）
+    randomDir(v).multiplyScalar(Math.abs(gaussian()) * 1.5 + Math.random() * 0.6);
+    v.y *= 0.85; v.toArray(aS0, i * 3);
+    // 形 1：輪（ドーナツ）
+    const th = Math.random() * Math.PI * 2, ph = Math.random() * Math.PI * 2, rr = 0.25 + Math.random() * 0.45;
+    v.set((3 + rr * Math.cos(ph)) * Math.cos(th), rr * Math.sin(ph), (3 + rr * Math.cos(ph)) * Math.sin(th));
+    v.applyAxisAngle(new THREE.Vector3(1, 0, 0), 0.5).applyAxisAngle(new THREE.Vector3(0, 0, 1), 0.4); // 斜めに傾けて奥行きを見せる
+    v.toArray(aS1, i * 3);
+    // 形 2：ゆるやかに波打つ布のような面（奥へ傾ける）
+    const sxw = (Math.random() - 0.5) * 9, szw = (Math.random() - 0.5) * 5;
+    v.set(sxw, Math.sin(sxw * 0.7) * 0.6 + Math.cos(szw * 0.9 + sxw * 0.3) * 0.45 + (Math.random() - 0.5) * 0.08, szw);
+    v.applyAxisAngle(new THREE.Vector3(1, 0, 0), 0.55);
+    v.toArray(aS2, i * 3);
+    aRand[i] = Math.random();
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute("position", new THREE.BufferAttribute(aCube.slice(), 3));
+  geo.setAttribute("aCube", new THREE.BufferAttribute(aCube, 3));
+  geo.setAttribute("aBurst", new THREE.BufferAttribute(aBurst, 3));
+  geo.setAttribute("aS0", new THREE.BufferAttribute(aS0, 3));
+  geo.setAttribute("aS1", new THREE.BufferAttribute(aS1, 3));
+  geo.setAttribute("aS2", new THREE.BufferAttribute(aS2, 3));
+  geo.setAttribute("aBright", new THREE.BufferAttribute(aBright, 1));
+  geo.setAttribute("aRand", new THREE.BufferAttribute(aRand, 1));
+  const mat = new THREE.ShaderMaterial({
+    vertexShader: pointsVS, fragmentShader: pointsFS,
+    uniforms: {
+      uCubeMatrix: { value: new THREE.Matrix4() },
+      uBurst: { value: 0 }, uForm: { value: 0 }, uW: { value: new THREE.Vector3(1, 0, 0) },
+      uTime: { value: 0 }, uSize: { value: isMobile ? 2.2 : 2.4 }, uPR: { value: renderer.getPixelRatio() },
+      uShapeScale: { value: 1 }, uOpacity: { value: 0 },
+    },
+    transparent: true, depthWrite: false,
+  });
+  points = new THREE.Points(geo, mat);
+  points.frustumCulled = false;
+  scene.add(points);
+}
+
+// =================================================================
+// スクロール・サイズ
+// =================================================================
+const wrap = document.getElementById("stageWrap");
+// スムーススクロール：ホイールの1回1回をなめらかにつなぐ
+const lenis = window.Lenis && !reduce ? new window.Lenis({ lerp: 0.085, wheelMultiplier: 0.9 }) : null;
+lenis && lenis.stop(); // ローディング中は止める
+// スクロール量そのものも少し遅れて追いかけさせ、粒子の動きをなめらかにする
+let pSmooth = null;
+function smoothProgress() {
+  const raw = readProgress();
+  if (pSmooth === null || params.has("p")) pSmooth = raw;
+  else pSmooth += (raw - pSmooth) * 0.14;
+  return pSmooth;
+}
+function readProgress() {
+  if (params.has("p")) return +params.get("p");
+  const r = wrap.getBoundingClientRect();
+  return clamp01(-r.top / (r.height - innerHeight));
+}
+let viewW = 10, viewH = 6;
+function resize() {
+  const w = stage.clientWidth, h = stage.clientHeight;
+  renderer.setSize(w, h, false);
+  camera.aspect = w / h;
+  camera.updateProjectionMatrix();
+  viewH = 2 * Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)) * camera.position.z;
+  viewW = viewH * camera.aspect;
+  if (points) points.material.uniforms.uPR.value = renderer.getPixelRatio();
+}
+new ResizeObserver(resize).observe(stage);
+resize();
+
+const mouse = { x: 0, y: 0, sx: 0, sy: 0 };
+addEventListener("pointermove", (e) => { mouse.x = e.clientX / innerWidth * 2 - 1; mouse.y = e.clientY / innerHeight * 2 - 1; });
+
+// =================================================================
+// 毎フレーム
+// =================================================================
+const copyMain = document.getElementById("copyMain");
+const copySub = document.getElementById("copySub");
+const hintEl = document.getElementById("hint");
+const clock = new THREE.Clock();
+let started = false, startTime = 0;
+const tmpM = new THREE.Matrix4(), tmpP = new THREE.Vector3(), tmpQ = new THREE.Quaternion(), tmpS = new THREE.Vector3();
+const flowQ = new THREE.Quaternion(), flowE = new THREE.Euler();
+
+function frame() {
+  requestAnimationFrame(frame);
+  const t = clock.getElapsedTime();
+  lenis && lenis.raf(performance.now());
+  const p = smoothProgress();
+  mouse.sx = lerp(mouse.sx, mouse.x, 0.05);
+  mouse.sy = lerp(mouse.sy, mouse.y, 0.05);
+  const appear = started ? easeOut(clamp01((t - startTime) / 1.2)) : 0;
+
+  const gather = range(T.gather[0], T.gather[1], p);
+  const burst = range(T.burst[0], T.burst[1], p);
+  const form = easeInOut(range(T.form[0], T.form[1], p));
+  cubeState(p, t);
+
+  // ---- ② 写真：外側から現れて、縮みながら中央（奥）へ吸い込まれていく ----
+  const flowR = Math.max(viewW, viewH) * 0.42;
+  cards.forEach((card, i) => {
+    const u = card.material.uniforms, d = card.userData;
+    const isCube = i < CUBE_IMAGES.length;
+    // 流れの進み具合（時間で進み、スクロールでも進む）
+    const f = fract(d.seed2 + t * 0.06 + p * 3.2);
+    const fe = f * f;
+    const r = lerp(flowR, flowR * 0.08, easeOut(f));
+    const fx = Math.cos(d.angle) * r * (viewW > viewH ? 1 : 0.6);
+    const fy = Math.sin(d.angle) * r * 0.62;
+    const fz = lerp(2.2, -26, fe);
+    let op = range(0, 0.1, f) * (1 - range(0.82, 1, f)) * (d.inFlow ? 1 : 0);
+    flowE.set(0, 0, (d.seed - 0.5) * 0.3);
+    flowQ.setFromEuler(flowE);
+    // 流れに出ない写真は、奥の中心から現れてキューブへ向かう
+    const pos = d.inFlow ? tmpP.set(fx, fy, fz) : tmpP.set(Math.cos(d.angle) * 1.5, Math.sin(d.angle) * 1.0, -24);
+    const quat = tmpQ.copy(flowQ);
+    let sx = 1.9 * d.size, sy = 1.19 * d.size, crop = 1;
+
+    // ---- ③ キューブへ集まる ----
+    const g = easeInOut(clamp01(gather * 1.4 - (i % CUBE_IMAGES.length) / CUBE_IMAGES.length * 0.4));
+    if (isCube) {
+      if (g > 0) {
+        const tile = tiles[i];
+        tmpM.compose(tile.pos, tile.quat, new THREE.Vector3(1, 1, 1)).premultiply(cubeGroup.matrixWorld);
+        const tp = new THREE.Vector3(), tq = new THREE.Quaternion(), ts = new THREE.Vector3();
+        tmpM.decompose(tp, tq, ts);
+        // 途中は少し手前を通る
+        pos.lerp(tp, g); pos.z += Math.sin(g * Math.PI) * 1.2;
+        quat.slerp(tq, g);
+        sx = lerp(sx, TILE * ts.x, g); sy = lerp(sy, TILE * ts.y, g);
+        crop = lerp(1, 1 / 1.6, g); // 正方形に切り抜く
+        op = lerp(op, 1, g);
+      }
+      // ④ はじける瞬間に、写真から粒子へ切り替える
+      if (burst > 0.001 && points) op = 0;
+    } else {
+      // 流れるだけの写真は、キューブになるころに消える
+      op *= 1 - range(0, 0.6, gather);
+    }
+
+    card.position.copy(pos);
+    card.quaternion.copy(quat);
+    card.scale.set(sx, sy, 1);
+    u.uOpacity.value = op * appear;
+    u.uCrop.value = crop;
+    // キューブになりきるころに、写真から線画へ
+    u.uLine.value = isCube ? easeInOut(range(T.gather[1] - 0.04, T.gather[1] + 0.08, p)) * g : 0;
+    card.visible = u.uOpacity.value > 0.003;
+    card.renderOrder = Math.round(pos.z * 10) + (g > 0 ? 1000 : 0); // 奥のものから描く
+  });
+
+  cubeCore.visible = gather > 0.97 && !(burst > 0.001 && points);
+
+  // ---- ④ 粒子 ----
+  if (points) {
+    const pu = points.material.uniforms;
+    pu.uCubeMatrix.value.copy(cubeGroup.matrixWorld);
+    pu.uBurst.value = burst;
+    pu.uForm.value = form;
+    pu.uTime.value = t;
+    pu.uOpacity.value = burst > 0.001 ? 1 : 0;
+    pu.uShapeScale.value = Math.max(viewW, viewH) / 6.2; // 画面からはみ出すくらい大きく
+    // 3つの形を時間で順番に移り変わらせる（1つの形を 7 秒、そのうち後半 3 秒で次へ）
+    const k = t / 6, idx = Math.floor(k) % 3, m = easeInOut(range(0.57, 1, fract(k)));
+    const wts = [0, 0, 0]; wts[idx] = 1 - m; wts[(idx + 1) % 3] = m;
+    pu.uW.value.set(wts[0], wts[1], wts[2]);
+  }
+
+  // 少しだけマウスで視点を動かす
+  camera.position.x = mouse.sx * 0.5;
+  camera.position.y = -mouse.sy * 0.3;
+  camera.lookAt(0, 0, 0);
+  renderer.render(scene, camera);
+
+  // ---- ⑤ キャッチ ----
+  const copyOn = p >= T.copy;
+  copyMain.classList.toggle("is-in", copyOn);
+  copySub.classList.toggle("is-in", copyOn);
+  hintEl.style.opacity = String(1 - range(0, 0.04, p));
+}
+
+frame();
+const pointsReady = buildPoints();
+if (params.has("skip") || reduce) {
+  document.getElementById("loader").remove();
+  document.body.classList.remove("is-loading");
+  await pointsReady;
+} else {
+  await Promise.all([runLoader(), pointsReady]);
+}
+started = true;
+startTime = clock.getElapsedTime();
+lenis && lenis.start();
+</script>
+</body>
+</html>

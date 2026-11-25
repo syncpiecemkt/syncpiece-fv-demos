@@ -1,0 +1,676 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="robots" content="noindex, nofollow">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Syncpiece FV Demo — Spiral / Ring / Wall</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@112,800&family=Inter:wght@400;500;600&family=Zen+Kaku+Gothic+New:wght@500;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0b0b0c;
+    --fg: #f2f0ec;
+    --dim: rgba(242, 240, 236, .45);
+    --pad: clamp(16px, 2vw, 28px);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { background: var(--bg); color: var(--fg); }
+  body {
+    font-family: "Inter", "Zen Kaku Gothic New", sans-serif;
+    -webkit-font-smoothing: antialiased;
+    word-break: auto-phrase;
+    text-wrap: pretty;
+  }
+  a, button { color: inherit; text-decoration: none; font: inherit; background: none; border: 0; }
+
+  /* 画面の四隅に置く小さな文字 */
+  .ui { position: fixed; z-index: 10; font-size: 11px; font-weight: 500; line-height: 1.5; letter-spacing: .02em; }
+  .ui.tl { top: var(--pad); left: var(--pad); }
+  .ui.tr { top: var(--pad); right: var(--pad); text-align: right; }
+  .ui.bl { bottom: var(--pad); left: var(--pad); }
+  .ui.br { bottom: var(--pad); right: var(--pad); text-align: right; }
+  .logo { font-family: "Archivo", sans-serif; font-weight: 800; font-stretch: 112%; font-size: 15px; letter-spacing: -.01em; }
+  .ui .jp { font-family: "Zen Kaku Gothic New", sans-serif; letter-spacing: .06em; }
+  .ui small { display: block; color: var(--dim); }
+  .ui.br a { display: block; }
+
+  /* 上の真ん中：並びの切り替え（らせん・円・一面） */
+  .modes {
+    position: fixed; z-index: 10; top: var(--pad); left: 50%; transform: translateX(-50%);
+    display: flex; gap: 22px; align-items: center;
+  }
+  .modes button {
+    position: relative; width: 22px; height: 22px; cursor: pointer;
+    display: grid; place-items: center; opacity: .4; transition: opacity .3s;
+  }
+  .modes button.is-on, .modes button:hover { opacity: 1; }
+  .modes svg { width: 14px; height: 14px; overflow: visible; }
+  .modes button span {
+    position: absolute; top: 26px; left: 50%; transform: translateX(-50%);
+    font-size: 9px; font-weight: 600; letter-spacing: .16em; white-space: nowrap;
+    opacity: 0; transition: opacity .3s;
+  }
+  .modes button.is-on span { opacity: .8; }
+
+  /* スクロール量を確保する外枠と、画面に張り付く舞台 */
+  .stage-wrap { position: relative; height: 560vh; }
+  .stage { position: sticky; top: 0; height: 100vh; height: 100svh; overflow: hidden; }
+  .stage canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; cursor: grab; touch-action: pan-y; }
+  .stage canvas:active { cursor: grabbing; }
+  /* 四隅の文字が画像に重なっても読めるよう、上下を少し暗くする */
+  .stage::after {
+    content: ""; position: absolute; inset: 0; pointer-events: none; z-index: 1;
+    background: linear-gradient(180deg, rgba(11,11,12,.75), rgba(11,11,12,0) 16%, rgba(11,11,12,0) 80%, rgba(11,11,12,.8));
+  }
+
+  .catch {
+    position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
+    text-align: center; pointer-events: none; z-index: 2;
+    font-family: "Zen Kaku Gothic New", sans-serif; font-weight: 700;
+    font-size: clamp(17px, 2.2vw, 34px); line-height: 1.6; letter-spacing: .08em; white-space: nowrap;
+    opacity: 0;
+    text-shadow: 0 0 30px rgba(0, 0, 0, .8);
+  }
+  .catch .line { display: block; }
+  .catch small {
+    display: block; margin-bottom: 14px;
+    font-family: "Inter", sans-serif; font-size: 10px; font-weight: 600; letter-spacing: .3em; color: var(--dim);
+  }
+  .line > span { display: inline-block; } /* 砂にするとき、1行の文字の範囲を測るため */
+
+  /* 文字が砂になる／砂が文字になる層 */
+  .sand { position: absolute; inset: 0; width: 100%; height: 100%; z-index: 2; pointer-events: none; }
+
+  /* 一面のときの文字（左上・右下） */
+  .wall-copy {
+    position: absolute; z-index: 3; pointer-events: none; opacity: 0;
+    font-family: "Zen Kaku Gothic New", sans-serif; font-weight: 700;
+    text-shadow: 0 0 24px rgba(0, 0, 0, .9);
+  }
+  .wall-copy .line { display: block; white-space: nowrap; }
+  .wall-copy.tl {
+    left: 6.4vw; top: 18vh;
+    font-size: clamp(22px, 3.2vw, 50px); line-height: 1.6; letter-spacing: .16em;
+  }
+  .wall-copy.br {
+    right: 6.4vw; bottom: 15vh; text-align: right;
+    font-size: clamp(15px, 1.7vw, 26px); line-height: 1.9; letter-spacing: .2em;
+  }
+  /* 一面の文字の後ろだけ、写真を少し暗くして読みやすくする */
+  .wall-shade {
+    position: absolute; inset: 0; z-index: 1; pointer-events: none; opacity: 0;
+    background:
+      radial-gradient(ellipse 55% 45% at 18% 26%, rgba(11,11,12,.85), rgba(11,11,12,0) 70%),
+      radial-gradient(ellipse 50% 40% at 82% 80%, rgba(11,11,12,.85), rgba(11,11,12,0) 70%);
+  }
+
+  .hint {
+    position: absolute; left: 50%; bottom: var(--pad); transform: translateX(-50%);
+    font-size: 9px; font-weight: 600; letter-spacing: .3em; color: var(--dim);
+    pointer-events: none; transition: opacity .4s;
+  }
+
+  .next { min-height: 100vh; padding: 16vh 6vw; background: #141415; position: relative; z-index: 11; }
+  .next small { font-size: 11px; letter-spacing: .2em; color: var(--dim); }
+  .next h2 { margin-top: 18px; font-family: "Zen Kaku Gothic New", sans-serif; font-weight: 700; font-size: clamp(28px, 4vw, 60px); line-height: 1.4; letter-spacing: .04em; }
+
+  .u-sp-only { display: none; }
+  @media (max-width: 767px) {
+    .u-sp-only { display: inline; }
+    .u-pc-only { display: none; }
+    .modes { gap: 14px; }
+    .ui { font-size: 10px; }
+    .wall-copy.tl { left: var(--pad); top: 13vh; font-size: 20px; letter-spacing: .1em; }
+    .wall-copy.br { right: var(--pad); bottom: 17vh; font-size: 15px; letter-spacing: .12em; }
+  }
+</style>
+<script type="importmap">
+{ "imports": { "three": "https://unpkg.com/three@0.170.0/build/three.module.js" } }
+</script>
+</head>
+<body>
+<a href="#" class="ui tl logo">Syncpiece</a>
+<nav class="modes" id="modes" aria-label="並びの切り替え">
+  <button type="button" data-mode="0" aria-label="らせん">
+    <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.3"><path d="M7 7c0-1 1.6-1 1.6 0 0 1.8-3.2 1.8-3.2 0C5.4 4.2 10 4.2 10 7c0 3.5-6.6 3.5-6.6 0C3.4 2.6 11.6 2.6 11.6 7"/></svg>
+    <span>SPIRAL</span>
+  </button>
+  <button type="button" data-mode="1" aria-label="円">
+    <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.3"><circle cx="7" cy="7" r="5"/></svg>
+    <span>RING</span>
+  </button>
+  <button type="button" data-mode="2" aria-label="一面">
+    <svg viewBox="0 0 14 14" fill="currentColor"><rect x="1" y="1" width="5" height="5"/><rect x="8" y="1" width="5" height="5"/><rect x="1" y="8" width="5" height="5"/><rect x="8" y="8" width="5" height="5"/></svg>
+    <span>WALL</span>
+  </button>
+</nav>
+<a href="#" class="ui tr">Contact</a>
+<p class="ui bl"><span class="jp">デザインとデジタルの<br class="u-sp-only">クリエイティブパートナー</span><small>Works 2020 — 2026</small></p>
+<p class="ui br"><a href="#">Instagram</a><a href="#">X</a><a href="#">Email</a></p>
+
+<main>
+  <div class="stage-wrap" id="stageWrap">
+    <section class="stage" id="stage">
+      <canvas id="gl"></canvas>
+      <div class="wall-shade" id="wallShade"></div>
+      <canvas class="sand" id="sand"></canvas>
+      <p class="catch" id="catch"><small class="line"><span>SYNCPIECE WORKS</span></small><span class="line"><span>その課題に</span></span><span class="line"><span>デザインとデジタルの力を。</span></span></p>
+      <p class="wall-copy tl" id="wallTL"><span class="line"><span>その課題に</span></span><span class="line"><span>デザインとデジタルの力を。</span></span></p>
+      <p class="wall-copy br" id="wallBR"><span class="line"><span>つくるだけで終わらない。</span></span><span class="line"><span>その先の成果まで。</span></span></p>
+      <p class="hint" id="hint">SCROLL</p>
+    </section>
+  </div>
+  <section class="next">
+    <small>01 / WORKS</small>
+    <h2>つくるだけで終わらない。<br>その先の成果まで。</h2>
+  </section>
+</main>
+
+<script type="module">
+import * as THREE from "three";
+
+// =================================================================
+// 設定
+// =================================================================
+// syncpiece.com の実績一覧（/workscontents）の写真 49点。img/works/w01〜w49.webp
+//   w01-08, w15-26, w45-49 Web / w09, w11-14, w44 ロゴ / w10, w42 チラシ / w41 名刺 / w27-40, w43 XR
+// 同じ種類が固まらないよう、順番を混ぜて並べる
+const IMAGES = Array.from({ length: 49 }, (_, i) => "w" + String(((i * 17) % 49) + 1).padStart(2, "0"));
+const COUNT = IMAGES.length;
+const CARD_W = 1.6, CARD_H = 1.0; // 実績写真の比率（8:5）
+// 円のときに残す12枚（種類がばらけるように選び、この順で輪に並べる）
+const RING = ["w45", "w11", "w27", "w01", "w42", "w12", "w06", "w33", "w44", "w10", "w20", "w13"];
+const ringSlot = IMAGES.map((n) => RING.indexOf(n));
+// スクロール量（0〜1）と並びの対応
+//   0.00-0.12 らせん
+//   0.12-0.42 らせん → 円
+//   0.42-0.55 円
+//   0.55-0.85 円 → 一面
+//   0.85-1.00 一面
+const STOPS = [0, 0.48, 1]; // ボタンを押したときに移動する位置
+
+const params = new URLSearchParams(location.search);
+const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
+const clamp01 = (x) => Math.min(1, Math.max(0, x));
+const range = (a, b, x) => clamp01((x - a) / (b - a));
+const easeInOut = (t) => (t < .5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
+const easeOut = (t) => 1 - Math.pow(1 - t, 3);
+const lerp = THREE.MathUtils.lerp;
+const mod = (a, n) => ((a % n) + n) % n;
+
+// =================================================================
+// 基本セットアップ
+// =================================================================
+const canvas = document.getElementById("gl");
+const stage = document.getElementById("stage");
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.setClearColor(0x0b0b0c);
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(35, 1, 0.1, 100);
+camera.position.set(0, 0, 12);
+
+// =================================================================
+// カード：円筒に沿って曲げられる板（シェーダーで曲げる）
+// =================================================================
+const geo = new THREE.PlaneGeometry(CARD_W, CARD_H, 40, 1);
+const vertexShader = /* glsl */`
+  uniform float uBend;   // 0 = 平ら, 1 = 円筒の半径 uRadius で曲げる
+  uniform float uRadius;
+  varying vec2 vUv;
+  varying float vDepth;
+  void main() {
+    vUv = uv;
+    vec3 p = position;
+    if (uBend > 0.0001) {
+      float r = uRadius / uBend;
+      float a = p.x / r;
+      p.x = sin(a) * r;
+      p.z = (cos(a) - 1.0) * r;   // 端が円筒の中心側へ反る
+    }
+    vec4 mv = modelViewMatrix * vec4(p, 1.0);
+    vDepth = -mv.z;
+    gl_Position = projectionMatrix * mv;
+  }
+`;
+const fragmentShader = /* glsl */`
+  uniform sampler2D uMap;
+  uniform float uOpacity;
+  uniform float uFogNear;
+  uniform float uFogFar;
+  uniform float uAspect;
+  varying vec2 vUv;
+  varying float vDepth;
+  // 角の丸い四角の内側か
+  float roundedMask(vec2 uv, float r) {
+    vec2 p = (uv - 0.5) * vec2(uAspect, 1.0);
+    vec2 h = vec2(uAspect, 1.0) * 0.5 - r;
+    vec2 d = abs(p) - h;
+    float dist = length(max(d, 0.0)) - r;
+    return 1.0 - smoothstep(-0.004, 0.004, dist);
+  }
+  void main() {
+    float m = roundedMask(vUv, 0.025);
+    if (m < 0.01) discard;
+    vec4 c = texture2D(uMap, vUv);
+    // 奥にあるほど暗く沈める
+    float fog = smoothstep(uFogNear, uFogFar, vDepth);
+    c.rgb *= mix(1.0, 0.06, fog);
+    // 裏側はほぼ黒く
+    if (!gl_FrontFacing) c.rgb *= 0.12;
+    gl_FragColor = vec4(c.rgb, m * uOpacity);
+    #include <colorspace_fragment>
+  }
+`;
+
+// ファイルを直接開いた（file://）ときは、ブラウザの制限で画像ファイルを 3D 表示に使えない
+// （カードが真っ黒になる）。そのときだけ、写真を埋め込んだデータを先に読み込む。
+// サーバー経由（http / https）で開いたときは読み込まない。
+if (location.protocol === "file:") {
+  await new Promise((done) => {
+    const s = document.createElement("script");
+    s.src = "img/works/works-data.js";
+    s.onload = s.onerror = done;
+    document.head.appendChild(s);
+  });
+}
+
+function coverTexture(name) {
+  const c = document.createElement("canvas"); c.width = 640; c.height = 400;
+  const g = c.getContext("2d"); g.fillStyle = "#1a1a1b"; g.fillRect(0, 0, c.width, c.height);
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.anisotropy = 4;
+  const img = new Image();
+  img.onload = () => {
+    const r = c.width / c.height, ir = img.naturalWidth / img.naturalHeight;
+    let sw = img.naturalWidth, sh = img.naturalHeight;
+    if (ir > r) sw = sh * r; else sh = sw / r;
+    g.drawImage(img, (img.naturalWidth - sw) / 2, (img.naturalHeight - sh) / 2, sw, sh, 0, 0, c.width, c.height);
+    tex.needsUpdate = true;
+  };
+  img.src = (window.WORKS_DATA && window.WORKS_DATA[name]) || "img/works/" + encodeURIComponent(name) + ".webp";
+  return tex;
+}
+const textures = IMAGES.map(coverTexture);
+
+const cards = [];
+for (let i = 0; i < COUNT; i++) {
+  const mat = new THREE.ShaderMaterial({
+    vertexShader, fragmentShader,
+    uniforms: {
+      uMap: { value: textures[i % textures.length] },
+      uBend: { value: 1 },
+      uRadius: { value: 3 },
+      uOpacity: { value: 1 },
+      uFogNear: { value: 10 },
+      uFogFar: { value: 18 },
+      uAspect: { value: CARD_W / CARD_H },
+    },
+    side: THREE.DoubleSide,
+    transparent: true,
+  });
+  const mesh = new THREE.Mesh(geo, mat);
+  mesh.userData.seed = Math.random();
+  scene.add(mesh);
+  cards.push(mesh);
+}
+
+// =================================================================
+// 3つの並び（それぞれ位置・向き・大きさ・曲がり具合を返す）
+// =================================================================
+let viewW = 10, viewH = 6; // z=0 の面で見えている範囲（ワールド単位）
+const tmpE = new THREE.Euler();
+
+// らせん：縦軸のまわりを回りながら上がっていく。カードは円筒に沿って曲がる
+const HELIX = { perTurn: 8, rise: 0.4 };
+function helix(i, out, spin) {
+  const R = Math.min(3.1, viewW * 0.36);
+  const a = (i / HELIX.perTurn) * Math.PI * 2 + spin;
+  const y = (i - (COUNT - 1) / 2) * HELIX.rise * (R / 3.1);
+  out.pos.set(Math.sin(a) * R, y, Math.cos(a) * R - 1.2);
+  tmpE.set(0, a, 0);
+  out.quat.setFromEuler(tmpE);
+  out.scale = (R / 3.1) * 0.95;
+  out.bend = 1;
+  out.radius = R;
+}
+
+// 円：選んだ12枚だけで、きれいな輪にする
+function ring(i, out, spin) {
+  // 縦長の画面は幅いっぱいに、横長の画面は上の切り替えボタンに重ならない大きさに
+  const R = viewW / viewH < 0.8 ? viewW * 0.4 : viewH * 0.36;
+  const slot = ringSlot[i];
+  out.bend = 0;
+  out.radius = 3;
+  if (slot < 0) {
+    // 輪に入らないカードは、奥へ沈みながら消える
+    const a = (i / COUNT) * Math.PI * 2;
+    out.pos.set(Math.cos(a) * R * 0.6, Math.sin(a) * R * 0.6, -8);
+    out.quat.identity();
+    out.scale = 0.3;
+    out.opacity = 0;
+    return;
+  }
+  const a = (slot / RING.length) * Math.PI * 2 + Math.PI / 2 - spin * 0.35;
+  out.pos.set(Math.cos(a) * R, Math.sin(a) * R, 0);
+  // 写真は正立させたまま、輪の流れに沿って少しだけ傾ける（上下で逆さまにならないように）
+  tmpE.set(0, 0, -Math.cos(a) * 0.28);
+  out.quat.setFromEuler(tmpE);
+  out.scale = (2 * Math.PI * R / RING.length) / CARD_W * 0.72;
+  out.opacity = 1;
+}
+
+// 一面：画面いっぱいのグリッド。ゆっくり流れ、端はつながっている
+const grid = { cols: 7, rows: 6, sx: 2.4, sy: 1.9, scale: 1 };
+function layoutGrid() {
+  const portrait = viewW / viewH < 0.8;
+  // 画面に対するカードの大きさ
+  const cardW = portrait ? viewW / 2.4 : viewW / 6.2;
+  grid.scale = cardW / CARD_W;
+  grid.sx = cardW * 1.5;
+  grid.sy = CARD_H * grid.scale * 1.5;
+  grid.cols = Math.ceil(viewW / grid.sx) + 2;
+  grid.rows = Math.ceil(viewH / grid.sy) + 2;
+  // 枚数が足りなければ、カードを大きくして数を減らす
+  while (grid.cols * grid.rows > COUNT) {
+    grid.scale *= 1.08; grid.sx *= 1.08; grid.sy *= 1.08;
+    grid.cols = Math.ceil(viewW / grid.sx) + 2;
+    grid.rows = Math.ceil(viewH / grid.sy) + 2;
+  }
+}
+function wall(i, out, drift) {
+  const { cols, rows, sx, sy } = grid;
+  const n = cols * rows;
+  const k = i % n;
+  const c = k % cols, r = Math.floor(k / cols);
+  const W = cols * sx, H = rows * sy;
+  // 行ごとに少しずらす（レンガ積み）
+  const x = mod(c * sx + (r % 2) * sx * 0.5 + drift.x, W) - W / 2;
+  const y = mod(r * sy + drift.y, H) - H / 2;
+  out.pos.set(x, y, 0);
+  out.quat.identity();
+  out.scale = i < n ? grid.scale : 0.0001; // 余ったカードは隠す
+  out.bend = 0;
+  out.radius = 3;
+}
+
+const mk = () => ({ pos: new THREE.Vector3(), quat: new THREE.Quaternion(), scale: 1, bend: 0, radius: 3, opacity: 1 });
+const A = mk(), B = mk();
+
+// =================================================================
+// 操作：ドラッグで回す／流す
+// =================================================================
+const drag = { on: false, x: 0, y: 0, vx: 0, vy: 0 };
+const mouse = { x: 0, y: 0, sx: 0, sy: 0 };
+canvas.addEventListener("pointerdown", (e) => {
+  if (e.pointerType === "touch") return; // スマホは縦スクロールを優先
+  drag.on = true; drag.x = e.clientX; drag.y = e.clientY;
+  canvas.setPointerCapture(e.pointerId);
+});
+addEventListener("pointermove", (e) => {
+  mouse.x = e.clientX / innerWidth * 2 - 1;
+  mouse.y = e.clientY / innerHeight * 2 - 1;
+  if (!drag.on) return;
+  drag.vx = (e.clientX - drag.x) * 0.012;
+  drag.vy = (e.clientY - drag.y) * 0.012;
+  drag.x = e.clientX; drag.y = e.clientY;
+});
+addEventListener("pointerup", () => { drag.on = false; });
+
+// =================================================================
+// スクロール
+// =================================================================
+const wrap = document.getElementById("stageWrap");
+function readProgress() {
+  if (params.has("p")) return +params.get("p");
+  const r = wrap.getBoundingClientRect();
+  return clamp01(-r.top / (r.height - innerHeight));
+}
+const modeButtons = [...document.querySelectorAll("#modes button")];
+modeButtons.forEach((b) => b.addEventListener("click", () => {
+  const p = STOPS[+b.dataset.mode];
+  const top = wrap.offsetTop + p * (wrap.offsetHeight - innerHeight);
+  scrollTo({ top, behavior: reduce ? "auto" : "smooth" });
+}));
+
+// =================================================================
+// サイズ
+// =================================================================
+function resize() {
+  const w = stage.clientWidth, h = stage.clientHeight;
+  renderer.setSize(w, h, false);
+  camera.aspect = w / h;
+  // 縦長の画面では少し引く
+  camera.position.z = w / h < 0.8 ? 16 : 12;
+  camera.updateProjectionMatrix();
+  viewH = 2 * Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)) * camera.position.z;
+  viewW = viewH * camera.aspect;
+  layoutGrid();
+}
+new ResizeObserver(resize).observe(stage);
+resize();
+
+// =================================================================
+// 毎フレーム
+// =================================================================
+const catchEl = document.getElementById("catch");
+const hintEl = document.getElementById("hint");
+const clock = new THREE.Clock();
+let spin = 0;                       // らせん・円の回転
+const drift = { x: 0, y: 0 };       // 一面の流れ
+let introStart = performance.now();
+const qTmp = new THREE.Quaternion();
+const spinE = new THREE.Euler();
+const spinQ = new THREE.Quaternion();
+
+function frame() {
+  requestAnimationFrame(frame);
+  const dt = Math.min(clock.getDelta(), 0.05);
+  const p = readProgress();
+
+  // 並びの切り替え具合
+  const toRing = easeInOut(range(0.12, 0.42, p));
+  const toWall = easeInOut(range(0.55, 0.85, p));
+  const mode = p < 0.3 ? 0 : p < 0.7 ? 1 : 2;
+  modeButtons.forEach((b, i) => b.classList.toggle("is-on", i === mode));
+
+  // 回転と流れ（ドラッグの慣性込み）
+  if (!drag.on) { drag.vx *= 0.94; drag.vy *= 0.94; }
+  const auto = reduce ? 0 : 1;
+  spin += (0.16 * auto + drag.vx * 2.2 * (1 - toWall)) * dt * 3 * (1 - toWall * 0.7);
+  drift.x += (-0.22 * auto * dt) + drag.vx * toWall * 0.9;
+  drift.y += (0.06 * auto * dt) - drag.vy * toWall * 0.9;
+  mouse.sx = lerp(mouse.sx, mouse.x, 0.06);
+  mouse.sy = lerp(mouse.sy, mouse.y, 0.06);
+
+  // 最初：奥から飛んできてらせんになる
+  const introT = reduce || params.has("skip") ? 1 : clamp01((performance.now() - introStart) / 2200);
+
+  cards.forEach((card, i) => {
+    const u = card.material.uniforms;
+    // カードごとに少しずつ遅らせて動かす（波のように）
+    const delay = (i / COUNT) * 0.35;
+    const tR = easeInOut(clamp01((toRing * 1.35 - delay)));
+    const tW = easeInOut(clamp01((toWall * 1.35 - (1 - i / COUNT) * 0.35)));
+
+    // らせん → 円
+    helix(i, A, spin);
+    ring(i, B, spin);
+    const pos = A.pos.clone().lerp(B.pos, tR);
+    const quat = A.quat.clone().slerp(B.quat, tR);
+    let scale = lerp(A.scale, B.scale, tR);
+    let bend = lerp(A.bend, B.bend, tR);
+    let opacity = lerp(1, B.opacity, tR);
+    const radius = A.radius;
+    // 移動の途中は手前にふくらませて、くるっと回す
+    const midR = Math.sin(Math.PI * tR);
+    pos.z += midR * 0.9 * (0.5 + card.userData.seed);
+    spinE.set(midR * 0.35, 0, midR * (card.userData.seed - .5) * 1.0);
+    spinQ.setFromEuler(spinE);
+    quat.multiply(spinQ);
+
+    // 円 → 一面
+    if (tW > 0) {
+      wall(i, B, drift);
+      pos.lerp(B.pos, tW);
+      quat.slerp(B.quat, tW);
+      scale = lerp(scale, B.scale, tW);
+      bend = lerp(bend, 0, tW);
+      opacity = lerp(opacity, 1, tW);
+      const midW = Math.sin(Math.PI * tW);
+      pos.z += midW * 1.1 * (0.4 + card.userData.seed);
+      spinE.set(0, midW * 0.3, midW * (card.userData.seed - .5) * 0.7);
+      spinQ.setFromEuler(spinE);
+      quat.multiply(spinQ);
+    }
+
+    // 登場
+    const ti = easeOut(clamp01(introT * 1.4 - (i / COUNT) * 0.4));
+    if (ti < 1) {
+      pos.z = lerp(-40, pos.z, ti);
+      pos.y = lerp(pos.y - 6, pos.y, ti);
+    }
+    u.uOpacity.value = ti * opacity;
+    card.visible = u.uOpacity.value > 0.003;
+
+    card.position.copy(pos);
+    card.quaternion.copy(quat);
+    card.scale.setScalar(scale);
+    u.uBend.value = bend;
+    u.uRadius.value = radius / Math.max(scale, 0.0001);
+    // 奥を暗くするのは、らせんのときだけ
+    const fogAmt = 1 - Math.max(tR, tW);
+    u.uFogNear.value = lerp(40, camera.position.z - 0.5, fogAmt);
+    u.uFogFar.value = lerp(60, camera.position.z + 5.5, fogAmt);
+  });
+
+  // 全体の傾き：らせんは少し見下ろす、一面は入ってくるときだけ少し傾く
+  const tilt = (1 - toRing) * 0.12;
+  scene.rotation.set(tilt + mouse.sy * 0.06 * (1 - toWall), mouse.sx * 0.1 * (1 - toWall), toWall * (1 - toWall) * 4 * -0.22);
+
+  renderer.render(scene, camera);
+
+  // ---- 文字 ----
+  // 円の中のコピー：ふわっと出て、一面へ移るときに砂になって散る
+  const ringOut = range(0.55, 0.68, p);
+  // 一面の文字：砂が集まって文字になる（左上 → 右下の順）
+  const tlForm = range(0.8, 0.92, p);
+  const brForm = range(0.85, 0.97, p);
+  sandFrame([
+    { block: sandBlocks.catch, t: ringOut, base: range(0.36, 0.44, p) },
+    { block: sandBlocks.tl, t: 1 - tlForm, base: 1 },
+    { block: sandBlocks.br, t: 1 - brForm, base: 1 },
+  ]);
+  wallShade.style.opacity = String(Math.max(tlForm, brForm) * 0.95);
+  hintEl.style.opacity = String(1 - range(0, 0.05, p));
+}
+
+// =================================================================
+// 文字 ⇔ 砂
+//   文字を一度キャンバスに描いて、インクのある点を砂粒にする。
+//   t = 0 で文字のまま、t = 1 で散って消えた状態。
+//   散る範囲は文字のまわりだけ（少し右上へ流れる程度）で、漂わせない。
+// =================================================================
+const sandCanvas = document.getElementById("sand");
+const sandCtx = sandCanvas.getContext("2d");
+const wallShade = document.getElementById("wallShade");
+const sandBlocks = {
+  catch: { el: catchEl },
+  tl: { el: document.getElementById("wallTL") },
+  br: { el: document.getElementById("wallBR") },
+};
+let sandDpr = 1;
+const SAND_STEP = 2; // 何pxごとに砂粒を取るか
+
+function sampleBlock(b) {
+  const stageRect = stage.getBoundingClientRect();
+  const r = b.el.getBoundingClientRect();
+  const PAD = 4;
+  const w = Math.ceil(r.width) + PAD * 2, h = Math.ceil(r.height) + PAD * 2;
+  const c = document.createElement("canvas"); c.width = w; c.height = h;
+  const g = c.getContext("2d", { willReadFrequently: true });
+  g.textBaseline = "middle";
+  // 1行ずつ、DOMと同じ位置・同じ字間で1文字ずつ描く
+  b.el.querySelectorAll(".line > span").forEach((span) => {
+    const cs = getComputedStyle(span);
+    g.font = `${cs.fontWeight} ${cs.fontSize} ${cs.fontFamily}`;
+    g.fillStyle = cs.color;
+    const ls = parseFloat(cs.letterSpacing) || 0;
+    const lr = span.getBoundingClientRect();
+    let x = lr.left - r.left + PAD;
+    const y = lr.top + lr.height / 2 - r.top + PAD;
+    for (const ch of span.textContent) {
+      g.fillText(ch, x, y);
+      x += g.measureText(ch).width + ls;
+    }
+  });
+  const data = g.getImageData(0, 0, w, h).data;
+  const pts = [];
+  for (let y = 0; y < h; y += SAND_STEP) {
+    for (let x = 0; x < w; x += SAND_STEP) {
+      const k = (y * w + x) * 4;
+      if (data[k + 3] < 110) continue;
+      const rnd = Math.random();
+      // 右上へ少し流れる向き ＋ ばらつき
+      const ang = -0.45 + (Math.random() - 0.5) * 2.4;
+      const dist = 18 + rnd * rnd * 90;
+      pts.push({
+        x: r.left - stageRect.left - PAD + x,
+        y: r.top - stageRect.top - PAD + y,
+        dx: Math.cos(ang) * dist,
+        dy: Math.sin(ang) * dist - 10,
+        // 左の文字から順に崩れる／集まる
+        d: (x / w) * 0.45 + Math.random() * 0.25,
+        s: 1 + Math.random() * 0.9,
+        c: `rgb(${data[k]},${data[k + 1]},${data[k + 2]})`,
+      });
+    }
+  }
+  b.pts = pts;
+}
+
+function sampleAll() {
+  const w = stage.clientWidth, h = stage.clientHeight;
+  sandDpr = Math.min(devicePixelRatio || 1, 2);
+  sandCanvas.width = Math.round(w * sandDpr);
+  sandCanvas.height = Math.round(h * sandDpr);
+  Object.values(sandBlocks).forEach(sampleBlock);
+}
+
+function sandFrame(items) {
+  sandCtx.setTransform(1, 0, 0, 1, 0, 0);
+  sandCtx.clearRect(0, 0, sandCanvas.width, sandCanvas.height);
+  sandCtx.setTransform(sandDpr, 0, 0, sandDpr, 0, 0);
+  for (const { block, t, base } of items) {
+    // 文字そのもの：崩れ始めたらすぐ砂に置き換える
+    block.el.style.opacity = String(base * (1 - range(0, 0.1, t)));
+    if (!block.pts || t <= 0 || t >= 1 || base <= 0) continue;
+    const appear = range(0, 0.1, t) * base; // 文字と砂の入れ替わりをなめらかに
+    let lastColor = "";
+    for (const q of block.pts) {
+      const local = clamp01((t - q.d * 0.55) / 0.6);
+      if (local >= 1) continue;
+      const e = 1 - (1 - local) * (1 - local); // 散り始めは速く、だんだんゆっくり
+      sandCtx.globalAlpha = appear * (1 - local) * (1 - local * 0.3);
+      if (q.c !== lastColor) { sandCtx.fillStyle = q.c; lastColor = q.c; }
+      const size = q.s * (1 - local * 0.4);
+      sandCtx.fillRect(q.x + q.dx * e, q.y + q.dy * e, size, size);
+    }
+  }
+  sandCtx.globalAlpha = 1;
+}
+
+// フォントが読み込まれてから、文字の形を取る（画面サイズが変わったら取り直す）
+let sandTimer;
+const resample = () => { clearTimeout(sandTimer); sandTimer = setTimeout(sampleAll, 120); };
+new ResizeObserver(resample).observe(stage);
+document.fonts.ready.then(sampleAll);
+
+frame();
+</script>
+</body>
+</html>
