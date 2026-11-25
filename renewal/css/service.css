@@ -1,0 +1,222 @@
+@charset "UTF-8";
+/* =========================================================
+   サービス下層ページ 共通（style.css の後に読み込む）
+   - 黒背景・ゴシック体。見出しは欧文の細めの大文字
+   - ページ固有のスタイルは service-◯◯.css に分ける
+   ========================================================= */
+
+.is-service {
+  --c-bg: #101010;
+  --c-sub: rgba(255, 255, 255, .62);
+  --c-rule: rgba(255, 255, 255, .7);
+  background: var(--c-bg);
+  color: var(--c-white);
+}
+.is-service .l-header { color: var(--c-white); }
+.is-service .l-header.is-scrolled { background: rgba(16, 16, 16, .88); }
+
+/* ---------- 大見出し（OUR APPROACH. など） ---------- */
+.c-heading {
+  font-family: var(--ff-en);
+  font-size: clamp(40px, 5.9vw, 81px);
+  font-weight: 300;
+  letter-spacing: .05em;
+  line-height: 1.12;
+}
+.c-heading--md { font-size: clamp(32px, 4.1vw, 56px); }
+.c-heading-lead {
+  margin-top: 14px;
+  font-size: 17px;
+  font-weight: 400;
+  letter-spacing: .06em;
+  line-height: 2.2;
+}
+.c-heading-lead--sm { font-size: 16px; }
+
+/* ---------- ヒーロー ---------- */
+.c-page-hero { padding-top: 170px; }
+.c-page-hero__label {
+  font-family: var(--ff-en);
+  font-size: 19px;
+  font-weight: 400;
+  letter-spacing: .08em;
+  line-height: 1.4;
+}
+.c-page-hero__title {
+  margin-top: 14px;
+  font-family: var(--ff-en);
+  font-size: clamp(48px, 8.4vw, 115px);
+  font-weight: 300;
+  letter-spacing: .04em;
+  line-height: .98;
+}
+.c-page-hero__visual {
+  position: relative;
+  margin-top: 26px;
+  aspect-ratio: 1366 / 770;
+  overflow: hidden;
+}
+.c-page-hero__visual img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.c-page-hero__copy {
+  position: absolute;
+  top: 7.4%;
+  left: 0;
+  right: 0;
+}
+.c-page-hero__catch {
+  font-size: clamp(20px, 1.8vw, 25px);
+  font-weight: 400;
+  letter-spacing: .06em;
+  line-height: 1.6;
+}
+.c-page-hero__desc {
+  margin-top: 22px;
+  font-size: 15px;
+  font-weight: 400;
+  letter-spacing: .04em;
+  line-height: 2;
+}
+
+/* ---------- セクション共通 ---------- */
+.c-section { padding-top: 250px; }
+.c-section--sm { padding-top: 190px; }
+
+/* ---------- SELECTED WORKS ---------- */
+.c-works__head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 40px;
+}
+.c-link-arrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 26px;
+  margin-bottom: 10px;
+  font-family: var(--ff-en);
+  font-size: 16px;
+  font-weight: 400;
+  letter-spacing: .08em;
+  white-space: nowrap;
+}
+.c-link-arrow .c-btn__arrow { width: 54px; height: 10px; }
+.c-link-arrow .c-btn__arrow::after { width: 14px; }
+.c-link-arrow:hover .c-btn__arrow { transform: translateX(6px); }
+.c-works__list {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 40px;
+  margin-top: 104px;
+}
+.c-works__card { display: block; }
+.c-works__thumb { aspect-ratio: 579 / 325; overflow: hidden; background: #000; }
+.c-works__thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 1s cubic-bezier(.2, .7, .2, 1), opacity .4s;
+}
+.c-works__card:hover .c-works__thumb img { transform: scale(1.04); opacity: .85; }
+.c-works__name {
+  display: block;
+  margin-top: 40px;
+  font-size: 16px;
+  font-weight: 400;
+  letter-spacing: .04em;
+  line-height: 1.6;
+}
+
+/* ---------- 枠線ボタン ---------- */
+.c-btn-line {
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 40px;
+  min-width: 408px;
+  padding: 15px 30px 15px 44px;
+  border: 2px solid var(--c-white);
+  font-size: 15px;
+  font-weight: 400;
+  letter-spacing: .06em;
+  line-height: 1.5;
+  white-space: nowrap;
+  transition: background .4s, color .4s;
+}
+.c-btn-line .c-btn__arrow { width: 38px; height: 8px; }
+.c-btn-line .c-btn__arrow::after { width: 10px; }
+.c-btn-line:hover { background: var(--c-white); color: var(--c-black); }
+.c-btn-line:hover .c-btn__arrow { transform: translateX(6px); }
+
+/* ---------- 相談への誘導（中央ぞろえ） ---------- */
+.c-cta { padding: 150px 0 140px; text-align: center; }
+.c-cta__text {
+  font-size: clamp(20px, 1.9vw, 26px);
+  font-weight: 400;
+  letter-spacing: .04em;
+  line-height: 1.7;
+}
+.c-cta .c-btn-line { margin-top: 44px; }
+
+/* ---------- 見出し横の小さな番号付きテキスト ---------- */
+.c-num {
+  font-family: var(--ff-en);
+  font-size: 18px;
+  font-weight: 400;
+  letter-spacing: .08em;
+  line-height: 1.4;
+}
+.c-sub {
+  display: block;
+  font-size: 12px;
+  font-weight: 400;
+  letter-spacing: .06em;
+  line-height: 1.6;
+  color: var(--c-sub);
+}
+
+/* ---------- フェードイン（main.js が .is-shown を付ける） ---------- */
+.js-fade { opacity: 0; transform: translateY(28px); transition: opacity 1.1s, transform 1.1s cubic-bezier(.2, .7, .2, 1); }
+.js-fade.is-shown { opacity: 1; transform: none; }
+@media (prefers-reduced-motion: reduce) {
+  .js-fade { opacity: 1; transform: none; }
+}
+
+/* =========================================================
+   SP
+   ========================================================= */
+@media (max-width: 767px) {
+  .c-heading { font-size: 38px; letter-spacing: .03em; }
+  .c-heading--md { font-size: 30px; }
+  .c-heading-lead { font-size: 14px; line-height: 2; }
+
+  .c-page-hero { padding-top: 110px; }
+  .c-page-hero__label { font-size: 13px; }
+  .c-page-hero__title { font-size: 46px; }
+  /* 写真の下に文字を置くので、比率は画像側に持たせて切り抜かない */
+  .c-page-hero__visual { margin-top: 20px; aspect-ratio: auto; overflow: visible; }
+  .c-page-hero__visual img { height: auto; aspect-ratio: 4 / 3; object-position: 70% center; }
+  /* SPは写真の上に文字を載せず、写真の下に置く */
+  .c-page-hero__copy { position: static; margin-top: 28px; }
+  .c-page-hero__catch { font-size: 19px; }
+  .c-page-hero__desc { margin-top: 14px; font-size: 13px; }
+
+  .c-section { padding-top: 120px; }
+  .c-section--sm { padding-top: 100px; }
+
+  .c-works__head { display: block; }
+  .c-link-arrow { margin-top: 24px; font-size: 13px; }
+  .c-works__list { grid-template-columns: 1fr; gap: 36px; margin-top: 40px; }
+  .c-works__name { margin-top: 14px; font-size: 14px; }
+
+  .c-btn-line { min-width: 0; width: 100%; max-width: 360px; padding: 14px 20px 14px 24px; gap: 16px; font-size: 13px; }
+
+  .c-cta { padding: 100px 0 90px; }
+  .c-cta__text { font-size: 18px; }
+  .c-cta .c-btn-line { margin-top: 32px; }
+
+  .c-num { font-size: 14px; }
+}

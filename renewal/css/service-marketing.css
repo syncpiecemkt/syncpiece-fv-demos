@@ -1,0 +1,182 @@
+@charset "UTF-8";
+/* =========================================================
+   SERVICE 04 DIGITAL MARKETING
+   ========================================================= */
+
+/* ヒーロー：見出しの下端が写真に少し重なる */
+.p-mkt-hero__head { position: relative; z-index: 2; }
+.p-mkt-hero .c-page-hero__title {
+  font-size: clamp(44px, 6.6vw, 90px);
+  line-height: 1.02;
+}
+.p-mkt-hero .c-page-hero__visual {
+  aspect-ratio: 2049 / 1119;
+  margin-top: -24px;
+}
+.p-mkt-hero .c-page-hero__copy { top: 9%; }
+
+/* OUR APPROACH */
+.p-mkt-approach__inner {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 40px;
+}
+.p-mkt-approach__catch {
+  margin-top: 56px;
+  font-size: clamp(20px, 1.8vw, 25px);
+  font-weight: 400;
+  letter-spacing: .04em;
+  line-height: 1.95;
+}
+.p-mkt-approach__desc {
+  margin-top: 22px;
+  font-size: 15px;
+  font-weight: 400;
+  letter-spacing: .04em;
+  line-height: 2;
+}
+.p-mkt-approach__diagram {
+  flex-shrink: 0;
+  width: 340px;
+  margin-right: 115px;
+}
+.p-mkt-approach__diagram svg { display: block; width: 100%; height: auto; overflow: visible; }
+.p-mkt-approach__circles circle {
+  fill: none;
+  stroke: var(--c-white);
+  stroke-width: 2;
+}
+.p-mkt-approach__dots circle { fill: var(--c-white); }
+.p-mkt-approach__labels text {
+  fill: var(--c-white);
+  font-family: var(--ff-en);
+  font-size: 12px;
+  font-weight: 400;
+  letter-spacing: .08em;
+  text-anchor: middle;
+}
+/* 円が順に描かれる（フェードインと同時） */
+.p-mkt-approach__circles circle {
+  stroke-dasharray: 660;
+  stroke-dashoffset: 660;
+  transition: stroke-dashoffset 1.8s cubic-bezier(.4, 0, .2, 1);
+}
+.p-mkt-approach__circles circle:nth-child(2) { transition-delay: .25s; }
+.p-mkt-approach__circles circle:nth-child(3) { transition-delay: .5s; }
+.p-mkt-approach__dots,
+.p-mkt-approach__labels { opacity: 0; transition: opacity .8s 1.4s; }
+.is-shown .p-mkt-approach__circles circle { stroke-dashoffset: 0; }
+.is-shown .p-mkt-approach__dots,
+.is-shown .p-mkt-approach__labels { opacity: 1; }
+@media (prefers-reduced-motion: reduce) {
+  .p-mkt-approach__circles circle { stroke-dashoffset: 0; transition: none; }
+  .p-mkt-approach__dots, .p-mkt-approach__labels { opacity: 1; transition: none; }
+}
+
+/* WHAT WE DO */
+.p-mkt-do__catch {
+  margin-top: 40px;
+  font-size: clamp(20px, 1.8vw, 25px);
+  font-weight: 400;
+  letter-spacing: .04em;
+  line-height: 1.95;
+}
+.p-mkt-do__desc {
+  margin-top: 20px;
+  font-size: 15px;
+  font-weight: 400;
+  letter-spacing: .04em;
+  line-height: 2;
+}
+.p-mkt-do__list {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 0 46px;
+  margin-top: 96px;
+}
+.p-mkt-do__item {
+  display: flex;
+  gap: 0;
+  padding: 50px 0 22px;
+  border-bottom: 2px solid var(--c-white);
+}
+.p-mkt-do__item:nth-child(-n + 2) { padding-top: 0; }
+.p-mkt-do__item .c-num {
+  flex-shrink: 0;
+  width: 62px;
+  padding-top: 10px;
+}
+.p-mkt-do__title {
+  font-family: var(--ff-en);
+  font-size: clamp(22px, 2vw, 28px);
+  font-weight: 400;
+  letter-spacing: .07em;
+  line-height: 1.4;
+}
+.p-mkt-do__body .c-sub { margin-top: 2px; }
+.p-mkt-do__text {
+  margin-top: 18px;
+  font-size: 15px;
+  font-weight: 400;
+  letter-spacing: .04em;
+  line-height: 2;
+}
+
+/* 相談への誘導 */
+.p-mkt-cta { padding-top: 190px; }
+.p-mkt-cta__en {
+  font-family: var(--ff-en);
+  font-size: 19px;
+  font-weight: 400;
+  letter-spacing: .1em;
+  line-height: 1.4;
+}
+.p-mkt-cta__catch {
+  margin-top: 16px;
+  font-size: clamp(30px, 3.7vw, 50px);
+  font-weight: 400;
+  letter-spacing: .06em;
+  line-height: 1.5;
+}
+.p-mkt-cta__text {
+  margin-top: 32px;
+  font-size: clamp(16px, 1.45vw, 20px);
+  font-weight: 400;
+  letter-spacing: .04em;
+  line-height: 1.8;
+}
+.p-mkt-cta .c-btn-line { min-width: 426px; margin-top: 50px; }
+
+/* ---------- タブレット ---------- */
+@media (max-width: 1100px) {
+  .p-mkt-approach__diagram { width: 300px; margin-right: 0; }
+}
+
+/* ---------- SP ---------- */
+@media (max-width: 767px) {
+  .p-mkt-hero .c-page-hero__title { font-size: 44px; }
+  .p-mkt-hero .c-page-hero__visual { aspect-ratio: 4 / 3; margin-top: -12px; }
+  .p-mkt-hero .c-page-hero__visual img { object-position: 62% center; }
+
+  .p-mkt-approach__inner { display: block; }
+  .p-mkt-approach__catch { margin-top: 32px; font-size: 19px; }
+  .p-mkt-approach__desc { margin-top: 16px; font-size: 13px; }
+  .p-mkt-approach__diagram { width: 240px; margin: 56px auto 0; }
+
+  .p-mkt-do__catch { margin-top: 28px; font-size: 19px; }
+  .p-mkt-do__desc { margin-top: 14px; font-size: 13px; }
+  .p-mkt-do__list { grid-template-columns: 1fr; margin-top: 52px; }
+  .p-mkt-do__item { padding: 32px 0 18px; }
+  .p-mkt-do__item:nth-child(-n + 2) { padding-top: 32px; }
+  .p-mkt-do__item:first-child { padding-top: 0; }
+  .p-mkt-do__item .c-num { width: 40px; padding-top: 6px; }
+  .p-mkt-do__title { font-size: 21px; }
+  .p-mkt-do__text { margin-top: 12px; font-size: 13px; }
+
+  .p-mkt-cta { padding-top: 110px; }
+  .p-mkt-cta__en { font-size: 13px; }
+  .p-mkt-cta__catch { margin-top: 12px; font-size: 26px; }
+  .p-mkt-cta__text { margin-top: 20px; font-size: 14px; }
+  .p-mkt-cta .c-btn-line { min-width: 0; margin-top: 36px; }
+}
