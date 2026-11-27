@@ -9,11 +9,13 @@
 .p-hero__bg { display: none; }
 .p-hero { background: var(--c-black); }
 
-/* ---------- 浮遊する図形（画面に固定） ---------- */
+/* ---------- 浮遊する図形（画面に固定） ----------
+   重なり順：セクションの背景色 → 粒子 → 文字・カードなどの中身
+   （粒子は z-index 1。各セクションの中身を z-index 2 にして、粒子より手前に出す） */
 .p-particles {
   position: fixed;
   inset: 0;
-  z-index: 50;
+  z-index: 1;
   width: 100%;
   height: 100%;
   pointer-events: none;
@@ -21,6 +23,27 @@
   transition: opacity 1.6s ease;
 }
 .p-particles.is-ready { opacity: 1; }
+main section > :not(.p-works__lines),
+.l-footer > * {
+  position: relative;
+  z-index: 2;
+}
+
+/* ---------- 03 HOW WE WORK：線・球・テキストのまとまりを、ヘッダーを除いた画面の真ん中に ----------
+   まとまりの高さ ＝ 球の上半分 ＋ 球の下半分 ＋ 余白 64px ＋ テキスト（約 190px） */
+.p-beyond {
+  --beyond-text-gap: 64px;
+  --beyond-text-h: 190px;
+  --beyond-track: calc(50vh + var(--header-h) / 2 - (var(--ball) + var(--beyond-text-gap) + var(--beyond-text-h)) / 2 + var(--ball) / 2);
+}
+.p-beyond__track {
+  top: var(--beyond-track);
+  background: none; /* 水平の点線は消す（要素は球の位置と、背景の床の地平線の基準として残す） */
+}
+.p-beyond__texts { top: calc(var(--beyond-track) + var(--ball) / 2 + var(--beyond-text-gap)); }
+@media (max-width: 767px) {
+  .p-beyond { --beyond-text-gap: 40px; --beyond-text-h: 170px; }
+}
 
 /* ---------- ローディング ---------- */
 .p-loader {
